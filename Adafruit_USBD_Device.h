@@ -71,10 +71,6 @@ class Adafruit_USBD_Device
 
     bool begin(void);
 
-    // physical detach/attach by disable/enable pull-up resistor
-    void detach(void);
-    void attach(void);
-
     bool mounted      (void) { return tud_mounted(); }
     bool suspended    (void) { return tud_suspended(); }
     bool ready        (void) { return tud_ready(); }
@@ -82,6 +78,11 @@ class Adafruit_USBD_Device
 
     friend uint8_t const * tud_descriptor_device_cb(void);
     friend uint8_t const * tud_descriptor_configuration_cb(uint8_t index);
+
+    //------------- Platform Dependent APIs -------------//
+    uint8_t getSerialDescriptor(uint16_t* serial_str);
+    void detach(void); // physical detach by disable pull-up
+    void attach(void); // physical attach by enable pull-up
 };
 
 extern Adafruit_USBD_Device USBDevice;

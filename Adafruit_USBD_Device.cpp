@@ -42,8 +42,6 @@
   #define USB_CONFIG_POWER 100
 #endif
 
-extern uint8_t load_serial_number(uint16_t* serial_str);
-
 Adafruit_USBD_Device USBDevice;
 
 Adafruit_USBD_Device::Adafruit_USBD_Device(void)
@@ -300,7 +298,7 @@ uint16_t const* tud_descriptor_string_cb(uint8_t index)
 
     case 3:
       // serial Number
-      chr_count = load_serial_number(_desc_str+1);
+      chr_count = USBDevice.getSerialDescriptor(_desc_str+1);
     break;
 
     default: return NULL;
