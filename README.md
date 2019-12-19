@@ -26,7 +26,7 @@ Alternatively you could just copy the files over but will need to periodically s
 You will need to create 2 files 
 
 - `tusb_config.h` for configuration that best suites your port and 
-- `Adafruit_TinyUSB_Core.cpp` to implement platform-dependent functions
-
+- `Adafruit_TinyUSB_port.cpp` to implement platform-dependent functions
   - **Adafruit_TinyUSB_Core_init()** to initialize USB hardware (clock, pullups) and tinyusb stack
   - **Adafruit_TinyUSB_Core_touch1200()** callback that fired when IDE use touch 1200 feature to put board into DFU mode
+  - **Adafruit_USBD_Device** getSerialDescriptor(), detach(), attach()
