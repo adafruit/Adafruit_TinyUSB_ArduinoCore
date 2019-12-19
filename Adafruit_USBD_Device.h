@@ -71,8 +71,8 @@ class Adafruit_USBD_Device
 
     bool begin(void);
 
-    // physical dettach/attach by disable/enable pull-up resistor
-    void dettach(void);
+    // physical detach/attach by disable/enable pull-up resistor
+    void detach(void);
     void attach(void);
 
     bool mounted      (void) { return tud_mounted(); }
