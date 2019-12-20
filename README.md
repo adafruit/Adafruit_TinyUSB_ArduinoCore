@@ -1,4 +1,4 @@
-# TinyUSB Core for Arduino
+# Adafruit TinyUSB Core for Arduino
 
 This repo is Arduino compatible variant from [TinyUSB stack](https://github.com/hathach/tinyusb) project to provide core USB functionality and CDC support for Arduino. Other class drivers such as Mass Storage, HID, MIDI etc ... are provided by [Adafruit_TinyUSB_Arduino](https://github.com/adafruit/Adafruit_TinyUSB_Arduino).
 
