@@ -41,8 +41,14 @@
 // Application API
 //--------------------------------------------------------------------+
 
+// Init device stack
+bool tud_init (void);
+
 // Task function should be called in main/rtos loop
 void tud_task (void);
+
+// Interrupt handler, name alias to DCD
+#define tud_isr   dcd_isr
 
 // Check if device is connected and configured
 bool tud_mounted(void);
@@ -177,7 +183,7 @@ TU_ATTR_WEAK bool tud_vendor_control_complete_cb(uint8_t rhport, tusb_control_re
   /* Endpoint Notification */\
   7, TUSB_DESC_ENDPOINT, _ep_notif, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(_ep_notif_size), 16,\
   /* CDC Data Interface */\
-  9, TUSB_DESC_INTERFACE, (uint8_t)((_itfnum) + 1), 0, 2, TUSB_CLASS_CDC_DATA, 0, 0, 0,\
+  9, TUSB_DESC_INTERFACE, (uint8_t)((_itfnum)+1), 0, 2, TUSB_CLASS_CDC_DATA, 0, 0, 0,\
   /* Endpoint Out */\
   7, TUSB_DESC_ENDPOINT, _epout, TUSB_XFER_BULK, U16_TO_U8S_LE(_epsize), 0,\
   /* Endpoint In */\
@@ -284,6 +290,37 @@ TU_ATTR_WEAK bool tud_vendor_control_complete_cb(uint8_t rhport, tusb_control_re
   TUD_MIDI_DESC_EP(_epin, _epsize, 1),\
   TUD_MIDI_JACKID_OUT_EMB(1)
 
+//------------- TUD_USBTMC/USB488 -------------//
+#define TUD_USBTMC_APP_CLASS    (TUSB_CLASS_APPLICATION_SPECIFIC)
+#define TUD_USBTMC_APP_SUBCLASS 0x03u
+
+#define TUD_USBTMC_PROTOCOL_STD    0x00u
+#define TUD_USBTMC_PROTOCOL_USB488 0x01u
+
+//   Interface number, number of endpoints, EP string index, USB_TMC_PROTOCOL*, bulk-out endpoint ID,
+//   bulk-in endpoint ID
+#define TUD_USBTMC_IF_DESCRIPTOR(_itfnum, _bNumEndpoints, _stridx, _itfProtocol) \
+/* Interface */ \
+  0x09, TUSB_DESC_INTERFACE, _itfnum, 0x00, _bNumEndpoints, TUD_USBTMC_APP_CLASS, TUD_USBTMC_APP_SUBCLASS, _itfProtocol, _stridx
+
+#define TUD_USBTMC_IF_DESCRIPTOR_LEN 9u
+
+#define TUD_USBTMC_BULK_DESCRIPTORS(_epout, _epin, _bulk_epsize) \
+/* Endpoint Out */ \
+7, TUSB_DESC_ENDPOINT, _epout, TUSB_XFER_BULK, U16_TO_U8S_LE(_bulk_epsize), 0u, \
+/* Endpoint In */ \
+7, TUSB_DESC_ENDPOINT, _epin, TUSB_XFER_BULK, U16_TO_U8S_LE(_bulk_epsize), 0u
+
+#define TUD_USBTMC_BULK_DESCRIPTORS_LEN (7u+7u)
+
+/* optional interrupt endpoint */ \
+// _int_pollingInterval : for LS/FS, expressed in frames (1ms each). 16 may be a good number?
+#define TUD_USBTMC_INT_DESCRIPTOR(_ep_interrupt, _ep_interrupt_size, _int_pollingInterval ) \
+7, TUSB_DESC_ENDPOINT, _ep_interrupt, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(_ep_interrupt_size), 0x16
+
+#define TUD_USBTMC_INT_DESCRIPTOR_LEN (7u)
+
+
 //------------- Vendor -------------//
 #define TUD_VENDOR_DESC_LEN  (9+7+7)
 
@@ -295,6 +332,21 @@ TU_ATTR_WEAK bool tud_vendor_control_complete_cb(uint8_t rhport, tusb_control_re
   7, TUSB_DESC_ENDPOINT, _epout, TUSB_XFER_BULK, U16_TO_U8S_LE(_epsize), 0,\
   /* Endpoint In */\
   7, TUSB_DESC_ENDPOINT, _epin, TUSB_XFER_BULK, U16_TO_U8S_LE(_epsize), 0
+
+//------------- DFU Runtime -------------//
+#define TUD_DFU_APP_CLASS    (TUSB_CLASS_APPLICATION_SPECIFIC)
+#define TUD_DFU_APP_SUBCLASS 0x01u
+
+// Length of template descriptr: 18 bytes
+#define TUD_DFU_RT_DESC_LEN (9 + 9)
+
+// DFU runtime descriptor
+// Interface number, string index, attributes, detach timeout, transfer size
+#define TUD_DFU_RT_DESCRIPTOR(_itfnum, _stridx, _attr, _timeout, _xfer_size) \
+  /* Interface */ \
+  9, TUSB_DESC_INTERFACE, _itfnum, 0, 0, TUD_DFU_APP_CLASS, TUD_DFU_APP_SUBCLASS, DFU_PROTOCOL_RT, _stridx, \
+  /* Function */ \
+  9, DFU_DESC_FUNCTIONAL, _attr, U16_TO_U8S_LE(_timeout), U16_TO_U8S_LE(_xfer_size), U16_TO_U8S_LE(0x0101)
 
 
 #ifdef __cplusplus

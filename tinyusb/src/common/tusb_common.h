@@ -35,10 +35,10 @@
  extern "C" {
 #endif
 
- //--------------------------------------------------------------------+
+//--------------------------------------------------------------------+
 // Macros Helper
 //--------------------------------------------------------------------+
-#define TU_ARRAY_SZIE(_arr)   ( sizeof(_arr) / sizeof(_arr[0]) )
+#define TU_ARRAY_SIZE(_arr)   ( sizeof(_arr) / sizeof(_arr[0]) )
 #define TU_MIN(_x, _y)        ( (_x) < (_y) ) ? (_x) : (_y) )
 #define TU_MAX(_x, _y)        ( (_x) > (_y) ) ? (_x) : (_y) )
 
@@ -58,7 +58,7 @@
 #define TU_BIT(n)             (1U << (n))
 
 //--------------------------------------------------------------------+
-// INCLUDES
+// Includes
 //--------------------------------------------------------------------+
 
 // Standard Headers
@@ -77,7 +77,7 @@
 #include "tusb_types.h"
 
 //--------------------------------------------------------------------+
-// INLINE FUNCTION
+// Inline Functions
 //--------------------------------------------------------------------+
 #define tu_memclr(buffer, size)  memset((buffer), 0, (size))
 #define tu_varclr(_var)          tu_memclr(_var, sizeof(*(_var)))
@@ -89,7 +89,7 @@ static inline uint32_t tu_u32(uint8_t b1, uint8_t b2, uint8_t b3, uint8_t b4)
 
 static inline uint16_t tu_u16(uint8_t high, uint8_t low)
 {
-  return (((uint16_t) high) << 8) + low;
+  return (uint16_t)((((uint16_t) high) << 8) + low);
 }
 
 static inline uint8_t tu_u16_high(uint16_t u16) { return (uint8_t) (((uint16_t) (u16 >> 8)) & 0x00ff); }
@@ -106,13 +106,18 @@ static inline uint16_t tu_max16 (uint16_t x, uint16_t y) { return (x > y) ? x : 
 static inline uint32_t tu_max32 (uint32_t x, uint32_t y) { return (x > y) ? x : y; }
 
 // Align
+static inline uint32_t tu_align_n(uint32_t value, uint32_t alignment)
+{
+  return value & ((uint32_t) ~(alignment-1));
+}
+
 static inline uint32_t tu_align32 (uint32_t value) { return (value & 0xFFFFFFE0UL); }
 static inline uint32_t tu_align16 (uint32_t value) { return (value & 0xFFFFFFF0UL); }
 static inline uint32_t tu_align4k (uint32_t value) { return (value & 0xFFFFF000UL); }
 static inline uint32_t tu_offset4k(uint32_t value) { return (value & 0xFFFUL); }
 
 //------------- Mathematics -------------//
-static inline uint32_t tu_abs(int32_t value) { return (value < 0) ? (-value) : value; }
+static inline uint32_t tu_abs(int32_t value) { return (uint32_t)((value < 0) ? (-value) : value); }
 
 /// inclusive range checking
 static inline bool tu_within(uint32_t lower, uint32_t value, uint32_t upper)
@@ -196,6 +201,44 @@ static inline bool     tu_bit_test (uint32_t value, uint8_t n) { return (value &
             + ((uint32_t)TU_BIN8(db2)<<16) \
             + ((uint32_t)TU_BIN8(db3)<<8) \
             + TU_BIN8(dlsb))
+#endif
+
+//--------------------------------------------------------------------+
+// Debug Function
+//--------------------------------------------------------------------+
+
+// CFG_TUSB_DEBUG for debugging
+// 0 : no debug
+// 1 : print when there is error
+// 2 : print out log
+#if CFG_TUSB_DEBUG
+
+void tu_print_mem(void const *buf, uint8_t size, uint16_t count);
+
+#ifndef tu_printf
+  #define tu_printf     printf
+#endif
+
+// Log with debug level 1
+#define TU_LOG1         tu_printf
+#define TU_LOG1_MEM     tu_print_mem
+
+// Log with debug level 2
+#if CFG_TUSB_DEBUG > 1
+  #define TU_LOG2       TU_LOG1
+  #define TU_LOG2_MEM   TU_LOG1_MEM
+#endif
+
+#endif // CFG_TUSB_DEBUG
+
+#ifndef TU_LOG1
+  #define TU_LOG1(...)
+  #define TU_LOG1_MEM(...)
+#endif
+
+#ifndef TU_LOG2
+  #define TU_LOG2(...)
+  #define TU_LOG2_MEM(...)
 #endif
 
 #ifdef __cplusplus
