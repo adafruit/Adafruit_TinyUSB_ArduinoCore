@@ -195,66 +195,67 @@ uint8_t const * tud_descriptor_configuration_cb(uint8_t index)
   return USBDevice._desc_cfg;
 }
 
-static int utf8_to_unichar(const char *str8, int *unicharp)
+static int8_t utf8Codepoint(const uint8_t *utf8, uint32_t *codepointp)
 {
-  int unichar;
+  int codepoint;
   int len;
 
-  if (str8[0] < 0x80)
+  if (utf8[0] < 0x80)
     len = 1;
-  else if ((str8[0] & 0xe0) == 0xc0)
+  else if ((utf8[0] & 0xe0) == 0xc0)
     len = 2;
-  else if ((str8[0] & 0xf0) == 0xe0)
+  else if ((utf8[0] & 0xf0) == 0xe0)
     len = 3;
-  else if ((str8[0] & 0xf8) == 0xf0)
+  else if ((utf8[0] & 0xf8) == 0xf0)
     len = 4;
-  else if ((str8[0] & 0xfc) == 0xf8)
+  else if ((utf8[0] & 0xfc) == 0xf8)
     len = 5;
-  else if ((str8[0] & 0xfe) == 0xfc)
+  else if ((utf8[0] & 0xfe) == 0xfc)
     len = 6;
   else
     return -1;
 
   switch (len) {
     case 1:
-      unichar = str8[0];
+      codepoint = utf8[0];
       break;
     case 2:
-      unichar = str8[0] & 0x1f;
+      codepoint = utf8[0] & 0x1f;
       break;
     case 3:
-      unichar = str8[0] & 0x0f;
+      codepoint = utf8[0] & 0x0f;
       break;
     case 4:
-      unichar = str8[0] & 0x07;
+      codepoint = utf8[0] & 0x07;
       break;
     case 5:
-      unichar = str8[0] & 0x03;
+      codepoint = utf8[0] & 0x03;
       break;
     case 6:
-      unichar = str8[0] & 0x01;
+      codepoint = utf8[0] & 0x01;
       break;
   }
 
   for (int i = 1; i < len; i++) {
-          if ((str8[i] & 0xc0) != 0x80)
-                  return -1;
-          unichar <<= 6;
-          unichar |= str8[i] & 0x3f;
+    if ((utf8[i] & 0xc0) != 0x80)
+      return -1;
+
+    codepoint <<= 6;
+    codepoint |= utf8[i] & 0x3f;
   }
 
-  *unicharp = unichar;
+  *codepointp = codepoint;
   return len;
 }
 
-// Simple UCS-2/16-bit coversion, which handles the Basic Multilingual Plane
-static int strcpy_uni16(const char *s, uint16_t *buf, int bufsize) {
+static int strcpy_utf16(const char *s, uint16_t *buf, int bufsize)
+{
   int i = 0;
   int buflen = 0;
 
-  while (s[i] != 0 && i < bufsize) {
-    int unichar;
-    int utf8len = utf8_to_unichar(s + i, &unichar);
+  while (s[i] != 0) {
+    uint32_t codepoint;
+    uint8_t utf8len = utf8Codepoint((const uint8_t *)s + i, &codepoint);
 
     if (utf8len < 0) {
       // Invalid utf8 sequence, skip it
@@ -264,9 +265,21 @@ static int strcpy_uni16(const char *s, uint16_t *buf, int bufsize) {
 
     i += utf8len;
 
-    // If the codepoint is larger than 16 bit, skip it
-    if (unichar <= 0xffff)
-      buf[buflen++] = unichar;
+    if (codepoint <= 0xffff) {
+      if (buflen == bufsize)
+        break;
+
+      buf[buflen++] = codepoint;
+
+    } else {
+      if (buflen + 1 >= bufsize)
+        break;
+
+      // Surrogate pair
+      codepoint -= 0x10000;
+      buf[buflen++] = (codepoint >> 10) + 0xd800;
+      buf[buflen++] = (codepoint & 0x3ff) + 0xdc00;
+    }
   }
 
   return buflen;
@@ -289,11 +302,11 @@ uint16_t const* tud_descriptor_string_cb(uint8_t index)
     break;
 
     case 1:
-      chr_count = strcpy_uni16(USBDevice.getManufacturerDescriptor(), _desc_str + 1, 32);
+      chr_count = strcpy_utf16(USBDevice.getManufacturerDescriptor(), _desc_str + 1, 32);
     break;
 
     case 2:
-      chr_count = strcpy_uni16(USBDevice.getProductDescriptor(), _desc_str + 1, 32);
+      chr_count = strcpy_utf16(USBDevice.getProductDescriptor(), _desc_str + 1, 32);
     break;
 
     case 3:
