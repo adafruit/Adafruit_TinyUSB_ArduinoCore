@@ -58,7 +58,7 @@ Adafruit_USBD_Device::Adafruit_USBD_Device(void)
     .bDeviceSubClass    = MISC_SUBCLASS_COMMON,
     .bDeviceProtocol    = MISC_PROTOCOL_IAD,
 
-    .bMaxPacketSize0    = CFG_TUD_ENDOINT0_SIZE,
+    .bMaxPacketSize0    = CFG_TUD_ENDPOINT0_SIZE,
 
     .idVendor           = 0,
     .idProduct          = 0,
