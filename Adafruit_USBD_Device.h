@@ -60,6 +60,7 @@ class Adafruit_USBD_Device
 
     void setID(uint16_t vid, uint16_t pid);
     void setVersion(uint16_t bcd);
+    void setDeviceVersion(uint16_t bcd);
 
     void setLanguageDescriptor(uint16_t language_id);
     void setManufacturerDescriptor(const char *s);

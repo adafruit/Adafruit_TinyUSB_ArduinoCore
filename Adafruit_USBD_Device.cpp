@@ -156,6 +156,11 @@ void Adafruit_USBD_Device::setVersion(uint16_t bcd)
   _desc_device.bcdUSB = bcd;
 }
 
+void Adafruit_USBD_Device::setDeviceVersion(uint16_t bcd)
+{
+  _desc_device.bcdDevice = bcd;
+}
+
 
 void Adafruit_USBD_Device::setLanguageDescriptor (uint16_t language_id)
 {
