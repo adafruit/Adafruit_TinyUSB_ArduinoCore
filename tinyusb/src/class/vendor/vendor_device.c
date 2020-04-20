@@ -168,6 +168,8 @@ void vendord_reset(uint8_t rhport)
 
 bool vendord_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t *p_len)
 {
+  TU_VERIFY(TUSB_CLASS_VENDOR_SPECIFIC == itf_desc->bInterfaceClass);
+
   // Find available interface
   vendord_interface_t* p_vendor = NULL;
   for(uint8_t i=0; i<CFG_TUD_VENDOR; i++)
@@ -197,9 +199,15 @@ bool vendord_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint
   (void) rhport;
   (void) result;
 
-  // TODO Support multiple interfaces
-  uint8_t const itf = 0;
-  vendord_interface_t* p_itf = &_vendord_itf[itf];
+  uint8_t itf = 0;
+  vendord_interface_t* p_itf = _vendord_itf;
+
+  for ( ; ; itf++, p_itf++)
+  {
+    if (itf >= TU_ARRAY_SIZE(_vendord_itf)) return false;
+
+    if ( ( ep_addr == p_itf->ep_out ) || ( ep_addr == p_itf->ep_in ) ) break;
+  }
 
   if ( ep_addr == p_itf->ep_out )
   {
