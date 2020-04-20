@@ -29,9 +29,15 @@
 #if TUSB_OPT_DEVICE_ENABLED && CFG_TUSB_MCU == OPT_MCU_NRF5X
 
 #include "nrf.h"
-#include "nrf_power.h"
-#include "nrf_usbd.h"
 #include "nrf_clock.h"
+#include "nrf_power.h"
+#include "nrfx_usbd_errata.h"
+
+#ifdef SOFTDEVICE_PRESENT
+// For enable/disable hfclk with SoftDevice
+#include "nrf_sdm.h"
+#include "nrf_soc.h"
+#endif
 
 #include "device/dcd.h"
 
@@ -210,12 +216,6 @@ void dcd_set_address (uint8_t rhport, uint8_t dev_addr)
   NRF_USBD->INTENSET = USBD_INTEN_USBEVENT_Msk;
 }
 
-void dcd_set_config (uint8_t rhport, uint8_t config_num)
-{
-  (void) rhport;
-  (void) config_num;
-}
-
 void dcd_remote_wakeup(uint8_t rhport)
 {
   (void) rhport;
@@ -229,6 +229,20 @@ void dcd_remote_wakeup(uint8_t rhport)
 
   // TODO There is no USBEVENT Resume interrupt
   // We may manually raise DCD_EVENT_RESUME event here
+}
+
+// disconnect by disabling internal pull-up resistor on D+/D-
+void dcd_disconnect(uint8_t rhport)
+{
+  (void) rhport;
+  NRF_USBD->USBPULLUP = 0;
+}
+
+// connect by enabling internal pull-up resistor on D+/D-
+void dcd_connect(uint8_t rhport)
+{
+  (void) rhport;
+  NRF_USBD->USBPULLUP = 1;
 }
 
 //--------------------------------------------------------------------+
@@ -270,8 +284,10 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
   xfer->total_len  = total_bytes;
   xfer->actual_len = 0;
 
-  // Control endpoint with zero-length packet --> status stage
-  if ( epnum == 0 && total_bytes == 0 )
+  // Control endpoint with zero-length packet and opposite direction to 1st request byte --> status stage
+  bool const control_status = (epnum == 0 && total_bytes == 0 && dir != tu_edpt_dir(NRF_USBD->BMREQUESTTYPE));
+
+  if ( control_status )
   {
     // Status Phase also require Easy DMA has to be free as well !!!!
     edpt_dma_start(&NRF_USBD->TASKS_EP0STATUS);
@@ -351,8 +367,10 @@ void bus_reset(void)
   _dcd.xfer[0][TUSB_DIR_OUT].mps = MAX_PACKET_SIZE;
 }
 
-void USBD_IRQHandler(void)
+void dcd_int_handler(uint8_t rhport)
 {
+  (void) rhport;
+
   uint32_t const inten  = NRF_USBD->INTEN;
   uint32_t int_status = 0;
 
@@ -491,7 +509,8 @@ void USBD_IRQHandler(void)
   if ( int_status & (USBD_INTEN_EPDATA_Msk | USBD_INTEN_EP0DATADONE_Msk) )
   {
     uint32_t data_status = NRF_USBD->EPDATASTATUS;
-    nrf_usbd_epdatastatus_clear(data_status);
+    NRF_USBD->EPDATASTATUS = data_status;
+    __ISB(); __DSB();
 
     // EP0DATADONE is set with either Control Out on IN Data
     // Since EPDATASTATUS cannot be used to determine whether it is control OUT or IN.
@@ -538,6 +557,229 @@ void USBD_IRQHandler(void)
         }
       }
     }
+  }
+}
+
+//--------------------------------------------------------------------+
+// HFCLK helper
+//--------------------------------------------------------------------+
+#ifdef SOFTDEVICE_PRESENT
+// check if SD is present and enabled
+static bool is_sd_enabled(void)
+{
+  uint8_t sd_en = false;
+  (void) sd_softdevice_is_enabled(&sd_en);
+  return sd_en;
+}
+#endif
+
+static bool hfclk_running(void)
+{
+#ifdef SOFTDEVICE_PRESENT
+  if ( is_sd_enabled() )
+  {
+    uint32_t is_running;
+    (void) sd_clock_hfclk_is_running(&is_running);
+    return (is_running ? true : false);
+  }
+#endif
+
+  return nrf_clock_hf_is_running(NRF_CLOCK, NRF_CLOCK_HFCLK_HIGH_ACCURACY);
+}
+
+static void hfclk_enable(void)
+{
+  // already running, nothing to do
+  if ( hfclk_running() ) return;
+
+#ifdef SOFTDEVICE_PRESENT
+  if ( is_sd_enabled() )
+  {
+    (void)sd_clock_hfclk_request();
+    return;
+  }
+#endif
+
+  nrf_clock_event_clear(NRF_CLOCK, NRF_CLOCK_EVENT_HFCLKSTARTED);
+  nrf_clock_task_trigger(NRF_CLOCK, NRF_CLOCK_TASK_HFCLKSTART);
+}
+
+static void hfclk_disable(void)
+{
+#ifdef SOFTDEVICE_PRESENT
+  if ( is_sd_enabled() )
+  {
+    (void)sd_clock_hfclk_release();
+    return;
+  }
+#endif
+
+  nrf_clock_task_trigger(NRF_CLOCK, NRF_CLOCK_TASK_HFCLKSTOP);
+}
+
+// Power & Clock Peripheral on nRF5x to manage USB
+//
+// USB Bus power is managed by Power module, there are 3 VBUS power events:
+// Detected, Ready, Removed. Upon these power events, This function will
+// enable ( or disable ) usb & hfclk peripheral, set the usb pin pull up
+// accordingly to the controller Startup/Standby Sequence in USBD 51.4 specs.
+//
+// Therefore this function must be called to handle USB power event by
+// - nrfx_power_usbevt_init() : if Softdevice is not used or enabled
+// - SoftDevice SOC event : if SD is used and enabled
+void tusb_hal_nrf_power_event (uint32_t event)
+{
+  // Value is chosen to be as same as NRFX_POWER_USB_EVT_* in nrfx_power.h
+  enum {
+    USB_EVT_DETECTED = 0,
+    USB_EVT_REMOVED = 1,
+    USB_EVT_READY = 2
+  };
+
+  switch ( event )
+  {
+    case USB_EVT_DETECTED:
+      if ( !NRF_USBD->ENABLE )
+      {
+        /* Prepare for READY event receiving */
+        NRF_USBD->EVENTCAUSE = USBD_EVENTCAUSE_READY_Msk;
+        __ISB(); __DSB(); // for sync
+
+        /* Enable the peripheral */
+        // ERRATA 171, 187, 166
+
+        if ( nrfx_usbd_errata_187() )
+        {
+          // CRITICAL_REGION_ENTER();
+          if ( *((volatile uint32_t *) (0x4006EC00)) == 0x00000000 )
+          {
+            *((volatile uint32_t *) (0x4006EC00)) = 0x00009375;
+            *((volatile uint32_t *) (0x4006ED14)) = 0x00000003;
+            *((volatile uint32_t *) (0x4006EC00)) = 0x00009375;
+          }
+          else
+          {
+            *((volatile uint32_t *) (0x4006ED14)) = 0x00000003;
+          }
+          // CRITICAL_REGION_EXIT();
+        }
+
+        if ( nrfx_usbd_errata_171() )
+        {
+          // CRITICAL_REGION_ENTER();
+          if ( *((volatile uint32_t *) (0x4006EC00)) == 0x00000000 )
+          {
+            *((volatile uint32_t *) (0x4006EC00)) = 0x00009375;
+            *((volatile uint32_t *) (0x4006EC14)) = 0x000000C0;
+            *((volatile uint32_t *) (0x4006EC00)) = 0x00009375;
+          }
+          else
+          {
+            *((volatile uint32_t *) (0x4006EC14)) = 0x000000C0;
+          }
+          // CRITICAL_REGION_EXIT();
+        }
+
+        NRF_USBD->ENABLE = 1;
+        __ISB(); __DSB(); // for sync
+
+        // Enable HFCLK
+        hfclk_enable();
+      }
+    break;
+
+    case USB_EVT_READY:
+      /* Waiting for USBD peripheral enabled */
+      while ( !(USBD_EVENTCAUSE_READY_Msk & NRF_USBD->EVENTCAUSE) ) { }
+
+      NRF_USBD->EVENTCAUSE = USBD_EVENTCAUSE_READY_Msk;
+      __ISB(); __DSB(); // for sync
+
+      if ( nrfx_usbd_errata_171() )
+      {
+        // CRITICAL_REGION_ENTER();
+        if ( *((volatile uint32_t *) (0x4006EC00)) == 0x00000000 )
+        {
+          *((volatile uint32_t *) (0x4006EC00)) = 0x00009375;
+          *((volatile uint32_t *) (0x4006EC14)) = 0x00000000;
+          *((volatile uint32_t *) (0x4006EC00)) = 0x00009375;
+        }
+        else
+        {
+          *((volatile uint32_t *) (0x4006EC14)) = 0x00000000;
+        }
+
+        // CRITICAL_REGION_EXIT();
+      }
+
+      if ( nrfx_usbd_errata_187() )
+      {
+        // CRITICAL_REGION_ENTER();
+        if ( *((volatile uint32_t *) (0x4006EC00)) == 0x00000000 )
+        {
+          *((volatile uint32_t *) (0x4006EC00)) = 0x00009375;
+          *((volatile uint32_t *) (0x4006ED14)) = 0x00000000;
+          *((volatile uint32_t *) (0x4006EC00)) = 0x00009375;
+        }
+        else
+        {
+          *((volatile uint32_t *) (0x4006ED14)) = 0x00000000;
+        }
+        // CRITICAL_REGION_EXIT();
+      }
+
+      if ( nrfx_usbd_errata_166() )
+      {
+        *((volatile uint32_t *) (NRF_USBD_BASE + 0x800)) = 0x7E3;
+        *((volatile uint32_t *) (NRF_USBD_BASE + 0x804)) = 0x40;
+
+        __ISB(); __DSB();
+      }
+
+      // ISO buffer Lower half for IN, upper half for OUT
+      NRF_USBD->ISOSPLIT = USBD_ISOSPLIT_SPLIT_HalfIN;
+
+      // Enable interrupt
+      NRF_USBD->INTENSET = USBD_INTEN_USBRESET_Msk | USBD_INTEN_EPDATA_Msk |
+          USBD_INTEN_EP0SETUP_Msk | USBD_INTEN_EP0DATADONE_Msk | USBD_INTEN_ENDEPIN0_Msk | USBD_INTEN_ENDEPOUT0_Msk;
+
+      // Enable interrupt, priorities should be set by application
+      NVIC_ClearPendingIRQ(USBD_IRQn);
+      NVIC_EnableIRQ(USBD_IRQn);
+
+      // Wait for HFCLK
+      while ( !hfclk_running() ) { }
+
+      // Enable pull up
+      NRF_USBD->USBPULLUP = 1;
+      __ISB(); __DSB(); // for sync
+    break;
+
+    case USB_EVT_REMOVED:
+      if ( NRF_USBD->ENABLE )
+      {
+        // Abort all transfers
+
+        // Disable pull up
+        NRF_USBD->USBPULLUP = 0;
+        __ISB(); __DSB(); // for sync
+
+        // Disable Interrupt
+        NVIC_DisableIRQ(USBD_IRQn);
+
+        // disable all interrupt
+        NRF_USBD->INTENCLR = NRF_USBD->INTEN;
+
+        NRF_USBD->ENABLE = 0;
+        __ISB(); __DSB(); // for sync
+
+        hfclk_disable();
+
+        dcd_event_bus_signal(0, DCD_EVENT_UNPLUGGED, true);
+      }
+    break;
+
+    default: break;
   }
 }
 

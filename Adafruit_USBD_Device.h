@@ -82,8 +82,8 @@ class Adafruit_USBD_Device
 
     //------------- Platform Dependent APIs -------------//
     uint8_t getSerialDescriptor(uint16_t* serial_str);
-    void detach(void); // physical detach by disable pull-up
-    void attach(void); // physical attach by enable pull-up
+    bool detach(void); // physical detach by disable pull-up
+    bool attach(void); // physical attach by enable pull-up
 };
 
 extern Adafruit_USBD_Device USBDevice;

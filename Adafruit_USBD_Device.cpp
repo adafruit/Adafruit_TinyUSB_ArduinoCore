@@ -182,6 +182,16 @@ bool Adafruit_USBD_Device::begin(void)
   return true;
 }
 
+bool Adafruit_USBD_Device::detach(void)
+{
+  return tud_disconnect();
+}
+
+bool Adafruit_USBD_Device::attach(void)
+{
+  return tud_connect();
+}
+
 extern "C"
 {
 
@@ -295,8 +305,10 @@ static uint16_t _desc_str[33];
 
 // Invoked when received GET STRING DESCRIPTOR request
 // Application return pointer to descriptor, whose contents must exist long enough for transfer to complete
-uint16_t const* tud_descriptor_string_cb(uint8_t index)
+uint16_t const* tud_descriptor_string_cb(uint8_t index, uint16_t langid)
 {
+  (void) langid;
+
   uint8_t chr_count;
 
   switch (index)

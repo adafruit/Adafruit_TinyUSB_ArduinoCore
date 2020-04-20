@@ -44,6 +44,7 @@ typedef struct {
   struct TU_ATTR_PACKED
   {
     volatile uint8_t connected    : 1;
+    volatile uint8_t addressed    : 1;
     volatile uint8_t configured   : 1;
     volatile uint8_t suspended    : 1;
 
@@ -72,8 +73,17 @@ enum { DRVID_INVALID = 0xFFu };
 //--------------------------------------------------------------------+
 // Class Driver
 //--------------------------------------------------------------------+
-typedef struct {
-  uint8_t class_code;
+#if CFG_TUSB_DEBUG >= 2
+  #define DRIVER_NAME(_name)    .name = _name,
+#else
+  #define DRIVER_NAME(_name)
+#endif
+
+typedef struct
+{
+  #if CFG_TUSB_DEBUG >= 2
+  char const* name;
+  #endif
 
   void (* init             ) (void);
   void (* reset            ) (uint8_t rhport);
@@ -88,7 +98,7 @@ static usbd_class_driver_t const _usbd_driver[] =
 {
   #if CFG_TUD_CDC
   {
-      .class_code       = TUSB_CLASS_CDC,
+      DRIVER_NAME("CDC")
       .init             = cdcd_init,
       .reset            = cdcd_reset,
       .open             = cdcd_open,
@@ -101,7 +111,7 @@ static usbd_class_driver_t const _usbd_driver[] =
 
   #if CFG_TUD_MSC
   {
-      .class_code       = TUSB_CLASS_MSC,
+      DRIVER_NAME("MSC")
       .init             = mscd_init,
       .reset            = mscd_reset,
       .open             = mscd_open,
@@ -114,7 +124,7 @@ static usbd_class_driver_t const _usbd_driver[] =
 
   #if CFG_TUD_HID
   {
-      .class_code       = TUSB_CLASS_HID,
+      DRIVER_NAME("HID")
       .init             = hidd_init,
       .reset            = hidd_reset,
       .open             = hidd_open,
@@ -127,7 +137,7 @@ static usbd_class_driver_t const _usbd_driver[] =
 
   #if CFG_TUD_MIDI
   {
-      .class_code       = TUSB_CLASS_AUDIO,
+      DRIVER_NAME("MIDI")
       .init             = midid_init,
       .open             = midid_open,
       .reset            = midid_reset,
@@ -140,7 +150,7 @@ static usbd_class_driver_t const _usbd_driver[] =
 
   #if CFG_TUD_VENDOR
   {
-      .class_code       = TUSB_CLASS_VENDOR_SPECIFIC,
+      DRIVER_NAME("VENDOR")
       .init             = vendord_init,
       .reset            = vendord_reset,
       .open             = vendord_open,
@@ -152,12 +162,8 @@ static usbd_class_driver_t const _usbd_driver[] =
   #endif
 
   #if CFG_TUD_USBTMC
-  // Presently USBTMC is the only defined class with the APP_SPECIFIC class code.
-  // We maybe need to add subclass codes here, or a callback to ask if a driver can
-  // handle a particular interface.
   {
-      .class_code       = TUD_USBTMC_APP_CLASS,
-    //.subclass_code    = TUD_USBTMC_APP_SUBCLASS
+      DRIVER_NAME("TMC")
       .init             = usbtmcd_init_cb,
       .reset            = usbtmcd_reset_cb,
       .open             = usbtmcd_open_cb,
@@ -170,8 +176,7 @@ static usbd_class_driver_t const _usbd_driver[] =
 
   #if CFG_TUD_DFU_RT
   {
-      .class_code       = TUD_DFU_APP_CLASS,
-    //.subclass_code    = TUD_DFU_APP_SUBCLASS
+      DRIVER_NAME("DFU-RT")
       .init             = dfu_rtd_init,
       .reset            = dfu_rtd_reset,
       .open             = dfu_rtd_open,
@@ -179,6 +184,19 @@ static usbd_class_driver_t const _usbd_driver[] =
       .control_complete = dfu_rtd_control_complete,
       .xfer_cb          = dfu_rtd_xfer_cb,
       .sof              = NULL
+  },
+  #endif
+
+  #if CFG_TUD_NET
+  {
+      DRIVER_NAME("NET")
+      .init             = netd_init,
+      .reset            = netd_reset,
+      .open             = netd_open,
+      .control_request  = netd_control_request,
+      .control_complete = netd_control_complete,
+      .xfer_cb          = netd_xfer_cb,
+      .sof              = NULL,
   },
   #endif
 };
@@ -223,29 +241,6 @@ static char const* const _usbd_event_str[DCD_EVENT_COUNT] =
   "SETUP_RECEIVED" ,
   "XFER_COMPLETE"  ,
   "FUNC_CALL"
-};
-
-// must be same driver order as usbd_class_drivers[]
-static char const* const _usbd_driver_str[USBD_CLASS_DRIVER_COUNT] =
-{
-  #if CFG_TUD_CDC
-    "CDC",
-  #endif
-  #if CFG_TUD_MSC
-    "MSC",
-  #endif
-  #if CFG_TUD_HID
-    "HID",
-  #endif
-  #if CFG_TUD_MIDI
-    "MIDI",
-  #endif
-  #if CFG_TUD_VENDOR
-    "Vendor",
-  #endif
-  #if CFG_TUD_USBTMC
-    "USBTMC"
-  #endif
 };
 
 static char const* const _tusb_std_request_str[] =
@@ -304,12 +299,13 @@ bool tud_init (void)
   // Init class drivers
   for (uint8_t i = 0; i < USBD_CLASS_DRIVER_COUNT; i++)
   {
-    TU_LOG2("%s init\r\n", _usbd_driver_str[i]);
+    TU_LOG2("%s init\r\n", _usbd_driver[i].name);
     _usbd_driver[i].init();
   }
 
   // Init device controller driver
   dcd_init(TUD_OPT_RHPORT);
+  tud_connect();
   dcd_int_enable(TUD_OPT_RHPORT);
 
   return true;
@@ -399,7 +395,7 @@ void tud_task (void)
         uint8_t const epnum   = tu_edpt_number(ep_addr);
         uint8_t const ep_dir  = tu_edpt_dir(ep_addr);
 
-        TU_LOG2("  Endpoint: 0x%02X, Bytes: %ld\r\n", ep_addr, event.xfer_complete.len);
+        TU_LOG2("  Endpoint: 0x%02X, Bytes: %u\r\n", ep_addr, (unsigned int) event.xfer_complete.len);
 
         _usbd_dev.ep_status[epnum][ep_dir].busy = false;
 
@@ -412,7 +408,7 @@ void tud_task (void)
           uint8_t const drv_id = _usbd_dev.ep2drv[epnum][ep_dir];
           TU_ASSERT(drv_id < USBD_CLASS_DRIVER_COUNT,);
 
-          TU_LOG2("  %s xfer callback\r\n", _usbd_driver_str[drv_id]);
+          TU_LOG2("  %s xfer callback\r\n", _usbd_driver[drv_id].name);
           _usbd_driver[drv_id].xfer_cb(event.rhport, ep_addr, event.xfer_complete.result, event.xfer_complete.len);
         }
       }
@@ -457,7 +453,7 @@ static bool invoke_class_control(uint8_t rhport, uint8_t drvid, tusb_control_req
   TU_ASSERT(_usbd_driver[drvid].control_request);
 
   usbd_control_set_complete_callback(_usbd_driver[drvid].control_complete);
-  TU_LOG2("  %s control request\r\n", _usbd_driver_str[drvid]);
+  TU_LOG2("  %s control request\r\n", _usbd_driver[drvid].name);
   return _usbd_driver[drvid].control_request(rhport, request);
 }
 
@@ -505,6 +501,7 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
           usbd_control_set_request(p_request); // set request since DCD has no access to tud_control_status() API
           dcd_set_address(rhport, (uint8_t) p_request->wValue);
           // skip tud_control_status()
+          _usbd_dev.addressed = 1;
         break;
 
         case TUSB_REQ_GET_CONFIGURATION:
@@ -518,10 +515,10 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
         {
           uint8_t const cfg_num = (uint8_t) p_request->wValue;
 
-          dcd_set_config(rhport, cfg_num);
+          if ( !_usbd_dev.configured && cfg_num ) TU_ASSERT( process_set_config(rhport, cfg_num) );
+
           _usbd_dev.configured = cfg_num ? 1 : 0;
 
-          if ( cfg_num ) TU_ASSERT( process_set_config(rhport, cfg_num) );
           tud_control_status(rhport, p_request);
         }
         break;
@@ -572,38 +569,17 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
       uint8_t const drvid = _usbd_dev.itf2drv[itf];
       TU_VERIFY(drvid < USBD_CLASS_DRIVER_COUNT);
 
-      if (p_request->bmRequestType_bit.type == TUSB_REQ_TYPE_STANDARD)
+      // all requests to Interface (STD or Class) is forwarded to class driver.
+      // notable requests are: GET HID REPORT DESCRIPTOR, SET_INTERFACE, GET_INTERFACE
+      if ( !invoke_class_control(rhport, drvid, p_request) )
       {
-        switch ( p_request->bRequest )
-        {
-          case TUSB_REQ_GET_INTERFACE:
-          {
-            // TODO not support alternate interface yet
-            uint8_t alternate = 0;
-            tud_control_xfer(rhport, p_request, &alternate, 1);
-          }
-          break;
+        // For GET_INTERFACE, it is mandatory to respond even if the class
+        // driver doesn't use alternate settings.
+        TU_VERIFY( TUSB_REQ_TYPE_STANDARD == p_request->bmRequestType_bit.type &&
+                   TUSB_REQ_GET_INTERFACE == p_request->bRequest);
 
-          case TUSB_REQ_SET_INTERFACE:
-          {
-            uint8_t const alternate = (uint8_t) p_request->wValue;
-
-            // TODO not support alternate interface yet
-            TU_ASSERT(alternate == 0);
-            tud_control_status(rhport, p_request);
-          }
-          break;
-
-          default:
-            // forward to class driver: "STD request to Interface"
-            // GET HID REPORT DESCRIPTOR falls into this case
-            TU_VERIFY(invoke_class_control(rhport, drvid, p_request));
-          break;
-        }
-      }else
-      {
-        // forward to class driver: "non-STD request to Interface"
-        TU_VERIFY(invoke_class_control(rhport, drvid, p_request));
+        uint8_t alternate = 0;
+        tud_control_xfer(rhport, p_request, &alternate, 1);
       }
     }
     break;
@@ -618,7 +594,6 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
       TU_ASSERT(ep_num < TU_ARRAY_SIZE(_usbd_dev.ep2drv) );
 
       uint8_t const drvid = _usbd_dev.ep2drv[ep_num][ep_dir];
-      TU_ASSERT(drvid < USBD_CLASS_DRIVER_COUNT);
 
       bool ret = false;
 
@@ -658,13 +633,17 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
         }
       }
 
-      // Some classes such as USBTMC needs to clear/re-init its buffer when receiving CLEAR_FEATURE request
-      // We will forward all request targeted endpoint to class drivers after
-      // - For class-type requests: driver is fully responsible to reply to host
-      // - For std-type requests  : driver init/re-init internal variable/buffer only, and
-      //                            must not call tud_control_status(), driver's return value will have no effect.
-      //                            EP state has already affected (stalled/cleared)
-      if ( invoke_class_control(rhport, drvid, p_request) ) ret = true;
+      if (drvid < 0xFF) {
+        TU_ASSERT(drvid < USBD_CLASS_DRIVER_COUNT);
+        
+        // Some classes such as USBTMC needs to clear/re-init its buffer when receiving CLEAR_FEATURE request
+        // We will forward all request targeted endpoint to class drivers after
+        // - For class-type requests: driver is fully responsible to reply to host
+        // - For std-type requests  : driver init/re-init internal variable/buffer only, and
+        //                            must not call tud_control_status(), driver's return value will have no effect.
+        //                            EP state has already affected (stalled/cleared)
+        if ( invoke_class_control(rhport, drvid, p_request) ) ret = true;
+      }
 
       if ( TUSB_REQ_TYPE_STANDARD == p_request->bmRequestType_bit.type )
       {
@@ -700,37 +679,59 @@ static bool process_set_config(uint8_t rhport, uint8_t cfg_num)
 
   while( p_desc < desc_end )
   {
-    // Each interface always starts with Interface or Association descriptor
+    tusb_desc_interface_assoc_t const * desc_itf_assoc = NULL;
+
+    // Class will always starts with Interface Association (if any) and then Interface descriptor
     if ( TUSB_DESC_INTERFACE_ASSOCIATION == tu_desc_type(p_desc) )
     {
-      p_desc = tu_desc_next(p_desc); // ignore Interface Association
-    }else
-    {
-      TU_ASSERT( TUSB_DESC_INTERFACE == tu_desc_type(p_desc) );
-
-      tusb_desc_interface_t* desc_itf = (tusb_desc_interface_t*) p_desc;
-
-      // Check if class is supported
-      uint8_t drv_id;
-      for (drv_id = 0; drv_id < USBD_CLASS_DRIVER_COUNT; drv_id++)
-      {
-        if ( _usbd_driver[drv_id].class_code == desc_itf->bInterfaceClass ) break;
-      }
-      TU_ASSERT( drv_id < USBD_CLASS_DRIVER_COUNT );
-
-      // Interface number must not be used already TODO alternate interface
-      TU_ASSERT( DRVID_INVALID == _usbd_dev.itf2drv[desc_itf->bInterfaceNumber] );
-      _usbd_dev.itf2drv[desc_itf->bInterfaceNumber] = drv_id;
-
-      uint16_t itf_len=0;
-      TU_LOG2("  %s open\r\n", _usbd_driver_str[drv_id]);
-      TU_ASSERT( _usbd_driver[drv_id].open(rhport, desc_itf, &itf_len) );
-      TU_ASSERT( itf_len >= sizeof(tusb_desc_interface_t) );
-
-      mark_interface_endpoint(_usbd_dev.ep2drv, p_desc, itf_len, drv_id);
-
-      p_desc += itf_len; // next interface
+      desc_itf_assoc = (tusb_desc_interface_assoc_t const *) p_desc;
+      p_desc = tu_desc_next(p_desc); // next to Interface
     }
+
+    TU_ASSERT( TUSB_DESC_INTERFACE == tu_desc_type(p_desc) );
+
+    tusb_desc_interface_t const * desc_itf = (tusb_desc_interface_t const*) p_desc;
+    uint8_t drv_id;
+    uint16_t drv_len;
+
+    for (drv_id = 0; drv_id < USBD_CLASS_DRIVER_COUNT; drv_id++)
+    {
+      usbd_class_driver_t const *driver = &_usbd_driver[drv_id];
+
+      drv_len = 0;
+      if ( driver->open(rhport, desc_itf, &drv_len) )
+      {
+        // Interface number must not be used already
+        TU_ASSERT( DRVID_INVALID == _usbd_dev.itf2drv[desc_itf->bInterfaceNumber] );
+
+        TU_LOG2("  %s open\r\n", _usbd_driver[drv_id].name);
+        _usbd_dev.itf2drv[desc_itf->bInterfaceNumber] = drv_id;
+
+        // If IAD exist, assign all interfaces to the same driver
+        if (desc_itf_assoc)
+        {
+          // IAD's first interface number and class/subclass/protocol should match with opened interface
+          TU_ASSERT(desc_itf_assoc->bFirstInterface   == desc_itf->bInterfaceNumber   &&
+                    desc_itf_assoc->bFunctionClass    == desc_itf->bInterfaceClass    &&
+                    desc_itf_assoc->bFunctionSubClass == desc_itf->bInterfaceSubClass &&
+                    desc_itf_assoc->bFunctionProtocol == desc_itf->bInterfaceProtocol);
+
+          for(uint8_t i=1; i<desc_itf_assoc->bInterfaceCount; i++)
+          {
+            _usbd_dev.itf2drv[desc_itf->bInterfaceNumber+i] = drv_id;
+          }
+        }
+
+        break;
+      }
+    }
+
+    // Assert if cannot find supported driver
+    TU_ASSERT( drv_id < USBD_CLASS_DRIVER_COUNT && drv_len >= sizeof(tusb_desc_interface_t) );
+
+    mark_interface_endpoint(_usbd_dev.ep2drv, p_desc, drv_len, drv_id); // TODO refactor
+
+    p_desc += drv_len; // next interface
   }
 
   // invoke callback
@@ -767,7 +768,21 @@ static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const 
   switch(desc_type)
   {
     case TUSB_DESC_DEVICE:
-      return tud_control_xfer(rhport, p_request, (void*) tud_descriptor_device_cb(), sizeof(tusb_desc_device_t));
+    {
+      uint16_t len = sizeof(tusb_desc_device_t);
+
+      // Only send up to EP0 Packet Size if not addressed
+      // This only happens with the very first get device descriptor and EP0 size = 8 or 16.
+      if ((CFG_TUD_ENDPOINT0_SIZE < sizeof(tusb_desc_device_t)) && !_usbd_dev.addressed)
+      {
+        len = CFG_TUD_ENDPOINT0_SIZE;
+
+        // Hack here: we modify the request length to prevent usbd_control response with zlp
+        ((tusb_control_request_t*) p_request)->wLength = CFG_TUD_ENDPOINT0_SIZE;
+      }
+
+      return tud_control_xfer(rhport, p_request, (void*) tud_descriptor_device_cb(), len);
+    }
     break;
 
     case TUSB_DESC_BOS:
@@ -804,7 +819,7 @@ static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const 
         return false;
       }else
       {
-        uint8_t const* desc_str = (uint8_t const*) tud_descriptor_string_cb(desc_index);
+        uint8_t const* desc_str = (uint8_t const*) tud_descriptor_string_cb(desc_index, p_request->wIndex);
         TU_ASSERT(desc_str);
 
         // first byte of descriptor is its size
@@ -833,6 +848,7 @@ void dcd_event_handler(dcd_event_t const * event, bool in_isr)
   {
     case DCD_EVENT_UNPLUGGED:
       _usbd_dev.connected  = 0;
+      _usbd_dev.addressed  = 0;
       _usbd_dev.configured = 0;
       _usbd_dev.suspended  = 0;
       osal_queue_send(_usbd_q, event, in_isr);
@@ -991,6 +1007,22 @@ bool usbd_edpt_stalled(uint8_t rhport, uint8_t ep_addr)
   uint8_t const dir   = tu_edpt_dir(ep_addr);
 
   return _usbd_dev.ep_status[epnum][dir].stalled;
+}
+
+/**
+ * usbd_edpt_close will disable an endpoint.
+ * 
+ * In progress transfers on this EP may be delivered after this call.
+ * 
+ */
+void usbd_edpt_close(uint8_t rhport, uint8_t ep_addr)
+{
+  TU_ASSERT(dcd_edpt_close, /**/);
+  TU_LOG2("  CLOSING Endpoint: 0x%02X\r\n", ep_addr);
+
+  dcd_edpt_close(rhport, ep_addr);
+
+  return;
 }
 
 #endif

@@ -71,7 +71,7 @@ char const* const tusb_strerr[TUSB_ERROR_COUNT] = { ERROR_TABLE(ERROR_STRING) };
 static void dump_str_line(uint8_t const* buf, uint16_t count)
 {
   // each line is 16 bytes
-  for(int i=0; i<count; i++)
+  for(uint16_t i=0; i<count; i++)
   {
     const char ch = buf[i];
     tu_printf("%c", isprint(ch) ? ch : '.');
@@ -96,9 +96,9 @@ void tu_print_mem(void const *buf, uint16_t count, uint8_t indent)
   char format[] = "%00lX";
   format[2] += 2*size;
 
-  const uint8_t  item_per_line  = 16 / size;
+  const uint8_t item_per_line  = 16 / size;
 
-  for(uint32_t i=0; i<count; i++)
+  for(uint16_t i=0; i<count; i++)
   {
     uint32_t value=0;
 
@@ -115,7 +115,7 @@ void tu_print_mem(void const *buf, uint16_t count, uint8_t indent)
       for(uint8_t s=0; s < indent; s++) tu_printf(" ");
 
       // print offset or absolute address
-      tu_printf("%03lX: ", 16*i/item_per_line);
+      tu_printf("%03X: ", 16*i/item_per_line);
     }
 
     memcpy(&value, buf8, size);
@@ -131,7 +131,7 @@ void tu_print_mem(void const *buf, uint16_t count, uint8_t indent)
 
   if ( remain )
   {
-    for(int i=0; i< 16-remain; i++)
+    for(uint16_t i=0; i< 16-remain; i++)
     {
       tu_printf(" ");
       for(int j=0; j<2*size; j++) tu_printf(" ");
