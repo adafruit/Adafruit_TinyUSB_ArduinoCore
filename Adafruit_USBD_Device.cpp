@@ -270,7 +270,7 @@ static int strcpy_utf16(const char *s, uint16_t *buf, int bufsize)
 
   while (s[i] != 0) {
     uint32_t codepoint;
-    uint8_t utf8len = utf8Codepoint((const uint8_t *)s + i, &codepoint);
+    int8_t utf8len = utf8Codepoint((const uint8_t *)s + i, &codepoint);
 
     if (utf8len < 0) {
       // Invalid utf8 sequence, skip it
