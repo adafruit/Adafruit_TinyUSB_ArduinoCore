@@ -222,7 +222,7 @@ static int8_t utf8Codepoint(const uint8_t *utf8, uint32_t *codepointp)
   int len;
 
   // The upper bits define both the length of additional bytes for the multi-byte encoding,
-  // as well as defining the most significant bits of the codepoint.
+  // as well as defining how many bits of the first byte are included in the codepoint.
   // Each additional byte starts with 0b10xxxxxx, encoding six additional bits for the codepoint.
   //
   // For key summary points, see:
