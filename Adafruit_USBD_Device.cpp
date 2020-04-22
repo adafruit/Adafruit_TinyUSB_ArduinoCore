@@ -228,6 +228,11 @@ static int8_t utf8Codepoint(const uint8_t *utf8, uint32_t *codepointp)
   // For key summary points, see:
   // * https://tools.ietf.org/html/rfc3629#section-3
   //
+  if ((utf8[0] == 0xEF) && (utf8[1] == 0xBB) && (utf8[2] == 0xBF)) {
+    // If the caller does not exclude the BOM (which is legal for UTF-8), convert it to U+2060 WORD JOINER
+    *codepointp = 0x2060;
+    return 3;
+  }
 
   if (isInvalidUtf8Octet(utf8[0])) { // do not allow illegal octet sequences (e.g., 0xC0 0x80 should NOT decode to NULL)
     return -1;
