@@ -228,6 +228,7 @@ static int8_t utf8Codepoint(const uint8_t *utf8, uint32_t *codepointp)
   else if ((utf8[0] & 0xfe) == 0xfc)
     len = 6;
   else
+    *codepointp = 0
     return -1;
 
   switch (len) {
