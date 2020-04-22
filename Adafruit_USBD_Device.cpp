@@ -210,54 +210,61 @@ uint8_t const * tud_descriptor_configuration_cb(uint8_t index)
   return USBDevice._desc_cfg;
 }
 
+constexpr static inline bool isInvalidUtf8Octet(uint8_t t) {
+  // see bullets in https://tools.ietf.org/html/rfc3629#section-1
+  return (t == 0xc0) || (t == 0xC1) || ((t >= 0xF5) && (t <= 0xFF));
+}
+
 static int8_t utf8Codepoint(const uint8_t *utf8, uint32_t *codepointp)
 {
+  *codepointp = 0xFFFD; // always initialize output to known value ... 0xFFFD (REPLACEMENT CHARACTER) seems the natural choice
   int codepoint;
   int len;
 
-  if (utf8[0] < 0x80)
-    len = 1;
-  else if ((utf8[0] & 0xe0) == 0xc0)
-    len = 2;
-  else if ((utf8[0] & 0xf0) == 0xe0)
-    len = 3;
-  else if ((utf8[0] & 0xf8) == 0xf0)
-    len = 4;
-  else if ((utf8[0] & 0xfc) == 0xf8)
-    len = 5;
-  else if ((utf8[0] & 0xfe) == 0xfc)
-    len = 6;
-  else
-    *codepointp = 0
-    return -1;
+  // The upper bits define both the length of additional bytes for the multi-byte encoding,
+  // as well as defining the most significant bits of the codepoint.
+  // Each additional byte starts with 0b10xxxxxx, encoding six additional bits for the codepoint.
+  //
+  // For key summary points, see:
+  // * https://tools.ietf.org/html/rfc3629#section-3
+  //
 
-  switch (len) {
-    case 1:
-      codepoint = utf8[0];
-      break;
-    case 2:
-      codepoint = utf8[0] & 0x1f;
-      break;
-    case 3:
-      codepoint = utf8[0] & 0x0f;
-      break;
-    case 4:
-      codepoint = utf8[0] & 0x07;
-      break;
-    case 5:
-      codepoint = utf8[0] & 0x03;
-      break;
-    case 6:
-      codepoint = utf8[0] & 0x01;
-      break;
+  if (isInvalidUtf8Octet(utf8[0])) { // do not allow illegal octet sequences (e.g., 0xC0 0x80 should NOT decode to NULL)
+    return -1;
+  }
+
+  if (utf8[0] < 0x80) {                   // characters 0000 0000..0000 007F (up to  7 significant bits)
+    len = 1;
+    codepoint = utf8[0];
+  } else if ((utf8[0] & 0xe0) == 0xc0) {  // characters 0000 0080..0000 07FF (up to 11 significant bits, so first byte encodes five bits)
+    len = 2;
+    codepoint = utf8[0] & 0x1f;
+  } else if ((utf8[0] & 0xf0) == 0xe0) {  // characters 0000 8000..0000 FFFF (up to 16 significant bits, so first byte encodes four bits)
+    len = 3;
+    codepoint = utf8[0] & 0x0f;
+  } else if ((utf8[0] & 0xf8) == 0xf0) {  // characters 0001 0000..0010 FFFF (up to 21 significant bits, so first byte encodes three bits)
+    len = 4;
+    codepoint = utf8[0] & 0x07;
+  } else {                                // UTF-8 is defined to only map to Unicode -- 0x00000000..0x0010FFFF
+    // 5-byte and 6-byte sequences are not legal per RFC3629
+    return -1;
   }
 
   for (int i = 1; i < len; i++) {
-    if ((utf8[i] & 0xc0) != 0x80)
+    if ((utf8[i] & 0xc0) != 0x80) {
+      // the additional bytes in a valid UTF-8 multi-byte encoding cannot have either of the top two bits set
+      // This is more restrictive than isInvalidUtf8Octet()
       return -1;
-
+    }
     codepoint <<= 6;
     codepoint |= utf8[i] & 0x3f;
+  }
+  if (codepoint > 0010FFFF) {
+    // "You might expect larger code points than U+10FFFF
+    // to be expressible, but Unicode is limited in Sections 12
+    // of RFC3629 to match the limits of UTF-16." -- Wikipedia UTF-8 note
+    // See https://tools.ietf.org/html/rfc3629#section-12
+    return -1;
   }
 
   *codepointp = codepoint;
