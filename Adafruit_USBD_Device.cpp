@@ -215,6 +215,8 @@ constexpr static inline bool isInvalidUtf8Octet(uint8_t t) {
   return (t == 0xc0) || (t == 0xC1) || ((t >= 0xF5) && (t <= 0xFF));
 }
 
+// BUGBUG -- this decoder may access up to three additional bytes beyond the end of the allocated buffer.
+//           to fix this would require a slightly larger change in the API.
 static int8_t utf8Codepoint(const uint8_t *utf8, uint32_t *codepointp)
 {
   *codepointp = 0xFFFD; // always initialize output to known value ... 0xFFFD (REPLACEMENT CHARACTER) seems the natural choice
@@ -264,11 +266,25 @@ static int8_t utf8Codepoint(const uint8_t *utf8, uint32_t *codepointp)
     codepoint <<= 6;
     codepoint |= utf8[i] & 0x3f;
   }
-  if (codepoint > 0010FFFF) {
+
+  // explicit validation to prevent overlong encodings
+  if (       (len == 1) && ((codepoint < 0x000000) || (codepoint > 0x00007F))) {
+    return -1;
+  } else if ((len == 2) && ((codepoint < 0x000080) || (codepoint > 0x0007FF))) {
+    return -1;
+  } else if ((len == 3) && ((codepoint < 0x000800) || (codepoint > 0x00FFFF))) {
+    return -1;
+  } else if ((len == 4) && ((codepoint < 0x010000) || (codepoint > 0x10FFFF))) {
     // "You might expect larger code points than U+10FFFF
     // to be expressible, but Unicode is limited in Sections 12
     // of RFC3629 to match the limits of UTF-16." -- Wikipedia UTF-8 note
     // See https://tools.ietf.org/html/rfc3629#section-12
+    return -1;
+  }
+
+  // high and low surrogate halves (U+D800 through U+DFFF) used by UTF-16 are
+  // not legal Unicode values ... see RFC 3629.
+  if ((codepoint >= 0xD800) && (codepoint <= 0xDFFF)) {
     return -1;
   }
 
