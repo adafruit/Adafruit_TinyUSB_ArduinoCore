@@ -215,10 +215,38 @@ constexpr static inline bool isInvalidUtf8Octet(uint8_t t) {
   return (t == 0xc0) || (t == 0xC1) || ((t >= 0xF5) && (t <= 0xFF));
 }
 
-// BUGBUG -- this decoder may access up to three additional bytes beyond the end of the allocated buffer.
-//           to fix this would require a slightly larger change in the API.
+//
+// This function has an UNWRITTEN CONTRACT that the buffer is either:
+// 1. Pre-validated as legal UTF-8, -OR-
+// 2. has a trailing zero-value octet/byte/uint8_t  (aka null-terminated string)
+//
+// If the above are not true, this decoder may read past the end of the allocated
+// buffer, by up to three bytes.
+//
+// U+1F47F == 👿 ("IMP")
+//         == 0001_1111_0100_0111_1111 ==> requires four-byte encoding in UTF-8
+//            AABB BBBB CCCC CCDD DDDD ==> 0xF0 0x9F 0x91 0xBF
+//
+// Example sandwich and safety variables are there to cover the
+// two most-common stack layouts for declared variables, in unoptimized
+// code, so that the bytes surrounding those allocated for 'evilUTF8'
+// are guaranteed to be non-zero and valid UTF8 continuation octets.
+//     uint8_t safety1      = 0;
+//     uint8_t sandwich1[4] = { 0x81, 0x82, 0x83, 0x84 };
+//     uint8_t evilUTF8[5]  = { 0xF0, 0x9F, 0x91, 0xBF, 0xF9 };
+//     uint8_t sandwich2[4] = { 0x85, 0x86, 0x87, 0x88 };
+//     uint8_t safety2      = 0;
+//
+// NOTE: evilUTF8 could just contain a single byte 0xF9 ....
+//
+// Attempting to decode evilUTF8 will progress to whatever is next to it on the stack.
+// The above should work when optimizations are turned  
+//
 static int8_t utf8Codepoint(const uint8_t *utf8, uint32_t *codepointp)
 {
+  const uint32_t CODEPOINT_LOWEST_SURROGATE_HALF  =   0xD800;
+  const uint32_t CODEPOINT_HIGHEST_SURROGATE_HALF =   0xDFFF;
+
   *codepointp = 0xFFFD; // always initialize output to known value ... 0xFFFD (REPLACEMENT CHARACTER) seems the natural choice
   int codepoint;
   int len;
@@ -230,12 +258,6 @@ static int8_t utf8Codepoint(const uint8_t *utf8, uint32_t *codepointp)
   // For key summary points, see:
   // * https://tools.ietf.org/html/rfc3629#section-3
   //
-  if ((utf8[0] == 0xEF) && (utf8[1] == 0xBB) && (utf8[2] == 0xBF)) {
-    // If the caller does not exclude the BOM (which is legal for UTF-8), convert it to U+2060 WORD JOINER
-    *codepointp = 0x2060;
-    return 3;
-  }
-
   if (isInvalidUtf8Octet(utf8[0])) { // do not allow illegal octet sequences (e.g., 0xC0 0x80 should NOT decode to NULL)
     return -1;
   }
@@ -263,8 +285,8 @@ static int8_t utf8Codepoint(const uint8_t *utf8, uint32_t *codepointp)
       // This is more restrictive than isInvalidUtf8Octet()
       return -1;
     }
-    codepoint <<= 6;
-    codepoint |= utf8[i] & 0x3f;
+    codepoint <<= 6;             // each continuation byte adds six bits to the codepoint
+    codepoint |= utf8[i] & 0x3f; // mask off the top two continuation bits, and add the six relevant bits
   }
 
   // explicit validation to prevent overlong encodings
@@ -284,7 +306,7 @@ static int8_t utf8Codepoint(const uint8_t *utf8, uint32_t *codepointp)
 
   // high and low surrogate halves (U+D800 through U+DFFF) used by UTF-16 are
   // not legal Unicode values ... see RFC 3629.
-  if ((codepoint >= 0xD800) && (codepoint <= 0xDFFF)) {
+  if ((codepoint >= CODEPOINT_LOWEST_SURROGATE_HALF) && (codepoint <= CODEPOINT_HIGHEST_SURROGATE_HALF)) {
     return -1;
   }
 
