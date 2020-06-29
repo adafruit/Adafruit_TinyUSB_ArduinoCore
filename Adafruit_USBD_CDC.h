@@ -51,7 +51,9 @@ public:
 	size_t write(const char *buffer, size_t size) {
 	  return write((const uint8_t *)buffer, size);
 	}
+
 	virtual int availableForWrite(void);
+	using Print::write; // pull in write(str) from Print
 	operator bool();
 };
 
