@@ -399,7 +399,6 @@ uint16_t const* tud_descriptor_string_cb(uint8_t index, uint16_t langid)
 // weak callback here to prevent linking error
 //--------------------------------------------------------------------+
 
-#if 1
 // HID
 TU_ATTR_WEAK uint8_t const * tud_hid_descriptor_report_cb(void) { return NULL; }
 TU_ATTR_WEAK uint16_t tud_hid_get_report_cb(uint8_t report_id, hid_report_type_t report_type, uint8_t* buffer, uint16_t reqlen) { return 0; }
@@ -412,7 +411,6 @@ TU_ATTR_WEAK void tud_msc_inquiry_cb(uint8_t lun, uint8_t vendor_id[8], uint8_t 
 TU_ATTR_WEAK bool tud_msc_test_unit_ready_cb(uint8_t lun) { return false; }
 TU_ATTR_WEAK void tud_msc_capacity_cb(uint8_t lun, uint32_t* block_count, uint16_t* block_size) { }
 TU_ATTR_WEAK int32_t tud_msc_scsi_cb (uint8_t lun, uint8_t const scsi_cmd[16], void* buffer, uint16_t bufsize) { return -1; }
-#endif
 
 } // extern C
 

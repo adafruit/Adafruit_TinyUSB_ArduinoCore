@@ -231,6 +231,7 @@ static void bus_reset(uint8_t rhport)
 }
 
 // Set turn-around timeout according to link speed
+extern uint32_t SystemCoreClock;
 static void set_turnaround(USB_OTG_GlobalTypeDef * usb_otg, tusb_speed_t speed)
 {
   usb_otg->GUSBCFG &= ~USB_OTG_GUSBCFG_TRDT;
@@ -243,7 +244,6 @@ static void set_turnaround(USB_OTG_GlobalTypeDef * usb_otg, tusb_speed_t speed)
   else
   {
     // Turnaround timeout depends on the MCU clock
-    extern uint32_t SystemCoreClock;
     uint32_t turnaround;
 
     if ( SystemCoreClock >= 32000000U )
@@ -453,6 +453,8 @@ void dcd_init (uint8_t rhport)
 
   // Enable global interrupt
   usb_otg->GAHBCFG |= USB_OTG_GAHBCFG_GINT;
+
+  dcd_connect(rhport);
 }
 
 void dcd_int_enable (uint8_t rhport)
@@ -514,8 +516,14 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
 
   TU_ASSERT(epnum < EP_MAX);
 
-  // TODO ISO endpoint can be up to 1024 bytes
-  TU_ASSERT(desc_edpt->wMaxPacketSize.size <= (get_speed(rhport) == TUSB_SPEED_HIGH ? 512 : 64));
+  if (desc_edpt->bmAttributes.xfer == TUSB_XFER_ISOCHRONOUS)
+  {
+    TU_ASSERT(desc_edpt->wMaxPacketSize.size <= (get_speed(rhport) == TUSB_SPEED_HIGH ? 1024 : 1023));
+  }
+  else
+  {
+    TU_ASSERT(desc_edpt->wMaxPacketSize.size <= (get_speed(rhport) == TUSB_SPEED_HIGH ? 512 : 64));
+  }
 
   xfer_ctl_t * xfer = XFER_CTL_BASE(epnum, dir);
   xfer->max_size = desc_edpt->wMaxPacketSize.size;
