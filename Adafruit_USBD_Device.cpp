@@ -212,7 +212,7 @@ uint8_t const * tud_descriptor_configuration_cb(uint8_t index)
 
 constexpr static inline bool isInvalidUtf8Octet(uint8_t t) {
   // see bullets in https://tools.ietf.org/html/rfc3629#section-1
-  return (t == 0xc0) || (t == 0xC1) || ((t >= 0xF5) && (t <= 0xFF));
+  return (t == 0xc0) || (t == 0xC1) || (t >= 0xF5);
 }
 
 //
@@ -248,7 +248,7 @@ static int8_t utf8Codepoint(const uint8_t *utf8, uint32_t *codepointp)
   const uint32_t CODEPOINT_HIGHEST_SURROGATE_HALF =   0xDFFF;
 
   *codepointp = 0xFFFD; // always initialize output to known value ... 0xFFFD (REPLACEMENT CHARACTER) seems the natural choice
-  int codepoint;
+  uint32_t codepoint;
   int len;
 
   // The upper bits define both the length of additional bytes for the multi-byte encoding,
@@ -290,7 +290,7 @@ static int8_t utf8Codepoint(const uint8_t *utf8, uint32_t *codepointp)
   }
 
   // explicit validation to prevent overlong encodings
-  if (       (len == 1) && ((codepoint < 0x000000) || (codepoint > 0x00007F))) {
+  if (       (len == 1) && (codepoint > 0x00007F)) {
     return -1;
   } else if ((len == 2) && ((codepoint < 0x000080) || (codepoint > 0x0007FF))) {
     return -1;
