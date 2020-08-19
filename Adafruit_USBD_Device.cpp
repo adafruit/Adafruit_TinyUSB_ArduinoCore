@@ -403,6 +403,8 @@ uint16_t const* tud_descriptor_string_cb(uint8_t index, uint16_t langid)
 TU_ATTR_WEAK uint8_t const * tud_hid_descriptor_report_cb(void) { return NULL; }
 TU_ATTR_WEAK uint16_t tud_hid_get_report_cb(uint8_t report_id, hid_report_type_t report_type, uint8_t* buffer, uint16_t reqlen) { return 0; }
 TU_ATTR_WEAK void tud_hid_set_report_cb(uint8_t report_id, hid_report_type_t report_type, uint8_t const* buffer, uint16_t bufsize) { }
+TU_ATTR_WEAK uint16_t const* tud_descriptor_string_cb(uint8_t index, uint16_t langid);
+
 
 // MSC
 TU_ATTR_WEAK int32_t tud_msc_read10_cb (uint8_t lun, uint32_t lba, uint32_t offset, void* buffer, uint32_t bufsize) { return -1; }
