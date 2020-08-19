@@ -40,6 +40,8 @@ public:
 	void begin(uint32_t baud_count);
 	void begin(uint32_t baud, uint8_t config);
 	void end(void);
+        uint32_t getBaud() { return _baud_rate; }
+        void setBaud(uint32_t baud) {  _baud_rate = baud; }
 
 	virtual int    available(void);
 	virtual int    peek(void);
@@ -55,6 +57,8 @@ public:
 	virtual int availableForWrite(void);
 	using Print::write; // pull in write(str) from Print
 	operator bool();
+private:
+    uint32_t _baud_rate;
 };
 
 extern Adafruit_USBD_CDC Serial;
