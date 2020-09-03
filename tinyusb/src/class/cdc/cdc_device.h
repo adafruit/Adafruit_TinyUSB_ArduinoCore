@@ -218,9 +218,15 @@ static inline uint32_t tud_cdc_write_str (char const* str)
   return tud_cdc_n_write_str(0, str);
 }
 
+void tud_cdc_n_lock(uint8_t itf);
+void tud_cdc_n_unlock(uint8_t itf);
 static inline uint32_t tud_cdc_write_flush (void)
 {
-  return tud_cdc_n_write_flush(0);
+  uint32_t ret;
+  tud_cdc_n_lock(0);
+  ret = tud_cdc_n_write_flush(0);
+  tud_cdc_n_unlock(0);
+  return ret;
 }
 
 static inline uint32_t tud_cdc_write_available(void)

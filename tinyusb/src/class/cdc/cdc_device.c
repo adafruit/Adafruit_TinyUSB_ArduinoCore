@@ -58,6 +58,9 @@ typedef struct
 #if CFG_FIFO_MUTEX
   osal_mutex_def_t rx_ff_mutex;
   osal_mutex_def_t tx_ff_mutex;
+  osal_mutex_def_t mutex_def;
+  osal_mutex_t mutex;
+  uint8_t busy;
 #endif
 
   // Endpoint Transfer buffer
@@ -162,6 +165,7 @@ uint32_t tud_cdc_n_write_flush (uint8_t itf)
   cdcd_interface_t* p_cdc = &_cdcd_itf[itf];
 
   // skip if previous transfer not complete yet
+  TU_VERIFY( !p_cdc->busy, 0 );
   TU_VERIFY( !usbd_edpt_busy(TUD_OPT_RHPORT, p_cdc->ep_in), 0 );
 
   uint16_t count = tu_fifo_read_n(&_cdcd_itf[itf].tx_ff, p_cdc->epin_buf, sizeof(p_cdc->epin_buf));
@@ -169,6 +173,7 @@ uint32_t tud_cdc_n_write_flush (uint8_t itf)
   {
     TU_VERIFY( tud_cdc_n_connected(itf), 0 ); // fifo is empty if not connected
     TU_ASSERT( usbd_edpt_xfer(TUD_OPT_RHPORT, p_cdc->ep_in, p_cdc->epin_buf, count), 0 );
+    p_cdc->busy = true;
   }
 
   return count;
@@ -179,6 +184,15 @@ uint32_t tud_cdc_n_write_available (uint8_t itf)
   return tu_fifo_remaining(&_cdcd_itf[itf].tx_ff);
 }
 
+void tud_cdc_n_lock(uint8_t itf)
+{
+  osal_mutex_lock(_cdcd_itf[itf].mutex, OSAL_TIMEOUT_WAIT_FOREVER);
+}
+
+void tud_cdc_n_unlock(uint8_t itf)
+{
+  osal_mutex_unlock(_cdcd_itf[itf].mutex);
+}
 
 //--------------------------------------------------------------------+
 // USBD Driver API
@@ -206,6 +220,8 @@ void cdcd_init(void)
 #if CFG_FIFO_MUTEX
     tu_fifo_config_mutex(&p_cdc->rx_ff, osal_mutex_create(&p_cdc->rx_ff_mutex));
     tu_fifo_config_mutex(&p_cdc->tx_ff, osal_mutex_create(&p_cdc->tx_ff_mutex));
+    p_cdc->mutex = osal_mutex_create(&p_cdc->mutex_def);
+    p_cdc->busy = false;
 #endif
   }
 }
@@ -416,6 +432,8 @@ bool cdcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
   //       Though maybe the baudrate is not really important !!!
   if ( ep_addr == p_cdc->ep_in )
   {
+    tud_cdc_n_lock(itf);
+    p_cdc->busy = false;
     if ( 0 == tud_cdc_n_write_flush(itf) )
     {
       // There is no data left, a ZLP should be sent if
@@ -425,6 +443,7 @@ bool cdcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
         usbd_edpt_xfer(TUD_OPT_RHPORT, p_cdc->ep_in, NULL, 0);
       }
     }
+    tud_cdc_n_unlock(itf);
   }
 
   // nothing to do with notif endpoint for now
