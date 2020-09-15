@@ -42,6 +42,14 @@
   #define USB_CONFIG_POWER 100
 #endif
 
+enum
+{
+  STRID_LANGUAGE = 0,
+  STRID_MANUFACTURER,
+  STRID_PRODUCT,
+  STRID_SERIAL
+};
+
 Adafruit_USBD_Device USBDevice;
 
 Adafruit_USBD_Device::Adafruit_USBD_Device(void)
@@ -63,9 +71,9 @@ Adafruit_USBD_Device::Adafruit_USBD_Device(void)
     .idVendor           = 0,
     .idProduct          = 0,
     .bcdDevice          = 0x0100,
-    .iManufacturer      = 0x01,
-    .iProduct           = 0x02,
-    .iSerialNumber      = 0x03,
+    .iManufacturer      = STRID_MANUFACTURER,
+    .iProduct           = STRID_PRODUCT,
+    .iSerialNumber      = STRID_SERIAL,
     .bNumConfigurations = 0x01
   };
 
@@ -93,9 +101,13 @@ Adafruit_USBD_Device::Adafruit_USBD_Device(void)
   _itf_count    = 0;
   _epin_count   = _epout_count = 1;
 
-  _language_id  = USB_LANGUAGE;
-  _manufacturer = USB_MANUFACTURER;
-  _product      = USB_PRODUCT;
+  memset(_desc_str_arr, 0, sizeof(_desc_str_arr));
+  _desc_str_arr[STRID_LANGUAGE] = (const char*) ((uint32_t) USB_LANGUAGE);
+  _desc_str_arr[STRID_MANUFACTURER] = USB_MANUFACTURER;
+  _desc_str_arr[STRID_PRODUCT] = USB_PRODUCT;
+  // STRID_SERIAL is platform dependent
+
+  _desc_str_count = 4;
 }
 
 // Add interface descriptor
@@ -107,14 +119,31 @@ bool Adafruit_USBD_Device::addInterface(Adafruit_USBD_Interface& itf)
   uint16_t const len = itf.getDescriptor(_itf_count, desc, _desc_cfg_maxlen-_desc_cfg_len);
   uint8_t* desc_end = desc+len;
 
+  const char* desc_str = itf.getStringDescriptor();
+
   if ( !len ) return false;
 
+  // Parse interface descriptor to update
+  // - Interface Number & string descrioptor
+  // - Endpoint address
   while (desc < desc_end)
   {
     if (desc[1] == TUSB_DESC_INTERFACE)
     {
       tusb_desc_interface_t* desc_itf = (tusb_desc_interface_t*) desc;
-      if (desc_itf->bAlternateSetting == 0) _itf_count++;
+      if (desc_itf->bAlternateSetting == 0)
+      {
+        _itf_count++;
+        if (desc_str && (_desc_str_count < STRING_DESCRIPTOR_MAX) )
+        {
+          _desc_str_arr[_desc_str_count] = desc_str;
+          desc_itf->iInterface = _desc_str_count;
+          _desc_str_count++;
+
+          // only assign string index to first interface
+          desc_str = NULL;
+        }
+      }
     }else if (desc[1] == TUSB_DESC_ENDPOINT)
     {
       tusb_desc_endpoint_t* desc_ep = (tusb_desc_endpoint_t*) desc;
@@ -164,17 +193,17 @@ void Adafruit_USBD_Device::setDeviceVersion(uint16_t bcd)
 
 void Adafruit_USBD_Device::setLanguageDescriptor (uint16_t language_id)
 {
-  _language_id = language_id;
+  _desc_str_arr[STRID_LANGUAGE] = (const char*) ((uint32_t) language_id);
 }
 
 void Adafruit_USBD_Device::setManufacturerDescriptor(const char *s)
 {
-  _manufacturer = s;
+  _desc_str_arr[STRID_MANUFACTURER] = s;
 }
 
 void Adafruit_USBD_Device::setProductDescriptor(const char *s)
 {
-  _product = s;
+  _desc_str_arr[STRID_PRODUCT] = s;
 }
 
 bool Adafruit_USBD_Device::begin(void)
@@ -192,6 +221,44 @@ bool Adafruit_USBD_Device::attach(void)
   return tud_connect();
 }
 
+static int strcpy_utf16(const char *s, uint16_t *buf, int bufsize);
+uint16_t const* Adafruit_USBD_Device::descriptor_string_cb(uint8_t index, uint16_t langid)
+{
+  (void) langid;
+
+  // up to 32 unicode characters (header make it 33)
+  static uint16_t _desc_str[33];
+  uint8_t chr_count;
+
+  switch (index)
+  {
+    case 0:
+      _desc_str[1] = ((uint16_t) ((uint32_t) _desc_str_arr[STRID_LANGUAGE]));
+      chr_count = 1;
+    break;
+
+    case 3:
+      // serial Number
+      chr_count = this->getSerialDescriptor(_desc_str+1);
+    break;
+
+    default:
+      // Invalid index
+      if (index >= _desc_str_count ) return NULL;
+
+      chr_count = strcpy_utf16(_desc_str_arr[index], _desc_str + 1, 32);
+    break;
+  }
+
+  // first byte is length (including header), second byte is string type
+  _desc_str[0] = (TUSB_DESC_STRING << 8 ) | (2*chr_count + 2);
+
+  return _desc_str;
+}
+
+//--------------------------------------------------------------------+
+// TinyUSB stack callbacks
+//--------------------------------------------------------------------+
 extern "C"
 {
 
@@ -210,6 +277,39 @@ uint8_t const * tud_descriptor_configuration_cb(uint8_t index)
   return USBDevice._desc_cfg;
 }
 
+// Invoked when received GET STRING DESCRIPTOR request
+// Application return pointer to descriptor, whose contents must exist long enough for transfer to complete
+// Note: the 0xEE index string is a Microsoft OS 1.0 Descriptors.
+// https://docs.microsoft.com/en-us/windows-hardware/drivers/usbcon/microsoft-defined-usb-descriptors
+uint16_t const* tud_descriptor_string_cb(uint8_t index, uint16_t langid)
+{
+  return USBDevice.descriptor_string_cb(index, langid);
+}
+
+//--------------------------------------------------------------------+
+// Some of TinyUSB class driver requires strong callbacks, which cause
+// link error if 'Adafruit_TinyUSB_Arduino' is not included, provide
+// weak callback here to prevent linking error
+//--------------------------------------------------------------------+
+
+// HID
+TU_ATTR_WEAK uint8_t const * tud_hid_descriptor_report_cb(void) { return NULL; }
+TU_ATTR_WEAK uint16_t tud_hid_get_report_cb(uint8_t report_id, hid_report_type_t report_type, uint8_t* buffer, uint16_t reqlen) { return 0; }
+TU_ATTR_WEAK void tud_hid_set_report_cb(uint8_t report_id, hid_report_type_t report_type, uint8_t const* buffer, uint16_t bufsize) { }
+
+// MSC
+TU_ATTR_WEAK int32_t tud_msc_read10_cb (uint8_t lun, uint32_t lba, uint32_t offset, void* buffer, uint32_t bufsize) { return -1; }
+TU_ATTR_WEAK int32_t tud_msc_write10_cb (uint8_t lun, uint32_t lba, uint32_t offset, uint8_t* buffer, uint32_t bufsize) { return -1; }
+TU_ATTR_WEAK void tud_msc_inquiry_cb(uint8_t lun, uint8_t vendor_id[8], uint8_t product_id[16], uint8_t product_rev[4]) {}
+TU_ATTR_WEAK bool tud_msc_test_unit_ready_cb(uint8_t lun) { return false; }
+TU_ATTR_WEAK void tud_msc_capacity_cb(uint8_t lun, uint32_t* block_count, uint16_t* block_size) { }
+TU_ATTR_WEAK int32_t tud_msc_scsi_cb (uint8_t lun, uint8_t const scsi_cmd[16], void* buffer, uint16_t bufsize) { return -1; }
+
+} // extern C
+
+//--------------------------------------------------------------------+
+// Helper
+//--------------------------------------------------------------------+
 constexpr static inline bool isInvalidUtf8Octet(uint8_t t) {
   // see bullets in https://tools.ietf.org/html/rfc3629#section-1
   return (t == 0xc0) || (t == 0xC1) || (t >= 0xF5);
@@ -240,7 +340,7 @@ constexpr static inline bool isInvalidUtf8Octet(uint8_t t) {
 // NOTE: evilUTF8 could just contain a single byte 0xF9 ....
 //
 // Attempting to decode evilUTF8 will progress to whatever is next to it on the stack.
-// The above should work when optimizations are turned  
+// The above should work when optimizations are turned
 //
 static int8_t utf8Codepoint(const uint8_t *utf8, uint32_t *codepointp)
 {
@@ -350,68 +450,5 @@ static int strcpy_utf16(const char *s, uint16_t *buf, int bufsize)
 
   return buflen;
 }
-
-// up to 32 unicode characters (header make it 33)
-static uint16_t _desc_str[33];
-
-// Invoked when received GET STRING DESCRIPTOR request
-// Application return pointer to descriptor, whose contents must exist long enough for transfer to complete
-// Note: the 0xEE index string is a Microsoft OS 1.0 Descriptors.
-// https://docs.microsoft.com/en-us/windows-hardware/drivers/usbcon/microsoft-defined-usb-descriptors
-uint16_t const* tud_descriptor_string_cb(uint8_t index, uint16_t langid)
-{
-  (void) langid;
-
-  uint8_t chr_count;
-
-  switch (index)
-  {
-    case 0:
-      _desc_str[1] = USBDevice.getLanguageDescriptor();
-      chr_count = 1;
-    break;
-
-    case 1:
-      chr_count = strcpy_utf16(USBDevice.getManufacturerDescriptor(), _desc_str + 1, 32);
-    break;
-
-    case 2:
-      chr_count = strcpy_utf16(USBDevice.getProductDescriptor(), _desc_str + 1, 32);
-    break;
-
-    case 3:
-      // serial Number
-      chr_count = USBDevice.getSerialDescriptor(_desc_str+1);
-    break;
-
-    default: return NULL;
-  }
-
-  // first byte is length (including header), second byte is string type
-  _desc_str[0] = (TUSB_DESC_STRING << 8 ) | (2*chr_count + 2);
-
-  return _desc_str;
-}
-
-//--------------------------------------------------------------------+
-// Some of TinyUSB class driver requires strong callbacks, which cause
-// link error if 'Adafruit_TinyUSB_Arduino' is not included, provide
-// weak callback here to prevent linking error
-//--------------------------------------------------------------------+
-
-// HID
-TU_ATTR_WEAK uint8_t const * tud_hid_descriptor_report_cb(void) { return NULL; }
-TU_ATTR_WEAK uint16_t tud_hid_get_report_cb(uint8_t report_id, hid_report_type_t report_type, uint8_t* buffer, uint16_t reqlen) { return 0; }
-TU_ATTR_WEAK void tud_hid_set_report_cb(uint8_t report_id, hid_report_type_t report_type, uint8_t const* buffer, uint16_t bufsize) { }
-
-// MSC
-TU_ATTR_WEAK int32_t tud_msc_read10_cb (uint8_t lun, uint32_t lba, uint32_t offset, void* buffer, uint32_t bufsize) { return -1; }
-TU_ATTR_WEAK int32_t tud_msc_write10_cb (uint8_t lun, uint32_t lba, uint32_t offset, uint8_t* buffer, uint32_t bufsize) { return -1; }
-TU_ATTR_WEAK void tud_msc_inquiry_cb(uint8_t lun, uint8_t vendor_id[8], uint8_t product_id[16], uint8_t product_rev[4]) {}
-TU_ATTR_WEAK bool tud_msc_test_unit_ready_cb(uint8_t lun) { return false; }
-TU_ATTR_WEAK void tud_msc_capacity_cb(uint8_t lun, uint32_t* block_count, uint16_t* block_size) { }
-TU_ATTR_WEAK int32_t tud_msc_scsi_cb (uint8_t lun, uint8_t const scsi_cmd[16], void* buffer, uint16_t bufsize) { return -1; }
-
-} // extern C
 
 #endif // USE_TINYUSB

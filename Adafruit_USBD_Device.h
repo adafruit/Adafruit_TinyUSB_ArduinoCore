@@ -29,28 +29,36 @@
 
 class Adafruit_USBD_Interface
 {
+  protected:
+    const char* _desc_str;
+
   public:
+    Adafruit_USBD_Interface(void) { _desc_str = NULL; }
+
     virtual uint16_t getDescriptor(uint8_t itfnum, uint8_t* buf, uint16_t bufsize) = 0;
+    void setStringDescriptor(const char* str) { _desc_str = str; }
+    const char* getStringDescriptor(void) { return _desc_str; }
 };
 
 class Adafruit_USBD_Device
 {
   private:
+    enum { STRING_DESCRIPTOR_MAX = 8 };
+
     tusb_desc_device_t _desc_device;
 
     uint8_t  *_desc_cfg;
-    uint16_t _desc_cfg_maxlen;
-    uint16_t _desc_cfg_len;
     uint8_t  _desc_cfg_buffer[256];
+    uint16_t _desc_cfg_len;
+    uint16_t _desc_cfg_maxlen;
 
     uint8_t  _itf_count;
 
     uint8_t  _epin_count;
     uint8_t  _epout_count;
 
-    uint16_t _language_id;
-    const char *_manufacturer;
-    const char *_product;
+    const char* _desc_str_arr[STRING_DESCRIPTOR_MAX];
+    uint8_t     _desc_str_count;
 
   public:
     Adafruit_USBD_Device(void);
@@ -66,10 +74,6 @@ class Adafruit_USBD_Device
     void setManufacturerDescriptor(const char *s);
     void setProductDescriptor(const char *s);
 
-    uint16_t    getLanguageDescriptor     (void) { return _language_id; }
-    const char *getManufacturerDescriptor (void) { return _manufacturer; }
-    const char *getProductDescriptor      (void) { return _product; }
-
     bool begin(void);
 
     bool mounted      (void) { return tud_mounted(); }
@@ -77,13 +81,18 @@ class Adafruit_USBD_Device
     bool ready        (void) { return tud_ready(); }
     bool remoteWakeup (void) { return tud_remote_wakeup(); }
 
-    friend uint8_t const * tud_descriptor_device_cb(void);
-    friend uint8_t const * tud_descriptor_configuration_cb(uint8_t index);
+    bool detach       (void); // physical detach by disable pull-up
+    bool attach       (void); // physical attach by enable pull-up
 
     //------------- Platform Dependent APIs -------------//
     uint8_t getSerialDescriptor(uint16_t* serial_str);
-    bool detach(void); // physical detach by disable pull-up
-    bool attach(void); // physical attach by enable pull-up
+
+  private:
+    uint16_t const* descriptor_string_cb(uint8_t index, uint16_t langid);
+
+    friend uint8_t const * tud_descriptor_device_cb(void);
+    friend uint8_t const * tud_descriptor_configuration_cb(uint8_t index);
+    friend uint16_t const* tud_descriptor_string_cb(uint8_t index, uint16_t langid);
 };
 
 extern Adafruit_USBD_Device USBDevice;
