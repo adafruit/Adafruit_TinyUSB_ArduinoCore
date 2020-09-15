@@ -80,8 +80,9 @@ class Adafruit_USBD_Device
     bool suspended    (void) { return tud_suspended(); }
     bool ready        (void) { return tud_ready(); }
     bool remoteWakeup (void) { return tud_remote_wakeup(); }
-    bool detach(void); // physical detach by disable pull-up
-    bool attach(void); // physical attach by enable pull-up
+
+    bool detach       (void); // physical detach by disable pull-up
+    bool attach       (void); // physical attach by enable pull-up
 
     //------------- Platform Dependent APIs -------------//
     uint8_t getSerialDescriptor(uint16_t* serial_str);
