@@ -42,6 +42,14 @@
   #define USB_CONFIG_POWER 100
 #endif
 
+enum
+{
+  STRID_LANGUAGE = 0,
+  STRID_MANUFACTURER,
+  STRID_PRODUCT,
+  STRID_SERIAL
+};
+
 Adafruit_USBD_Device USBDevice;
 
 Adafruit_USBD_Device::Adafruit_USBD_Device(void)
@@ -63,9 +71,9 @@ Adafruit_USBD_Device::Adafruit_USBD_Device(void)
     .idVendor           = 0,
     .idProduct          = 0,
     .bcdDevice          = 0x0100,
-    .iManufacturer      = 0x01,
-    .iProduct           = 0x02,
-    .iSerialNumber      = 0x03,
+    .iManufacturer      = STRID_MANUFACTURER,
+    .iProduct           = STRID_PRODUCT,
+    .iSerialNumber      = STRID_SERIAL,
     .bNumConfigurations = 0x01
   };
 
@@ -93,15 +101,19 @@ Adafruit_USBD_Device::Adafruit_USBD_Device(void)
   _itf_count    = 0;
   _epin_count   = _epout_count = 1;
 
-  _language_id  = USB_LANGUAGE;
-  _manufacturer = USB_MANUFACTURER;
-  _product      = USB_PRODUCT;
+  memset(_desc_str_arr, 0, sizeof(_desc_str_arr));
+  _desc_str_arr[STRID_LANGUAGE] = (const char*) ((uint32_t) USB_LANGUAGE);
+  _desc_str_arr[STRID_MANUFACTURER] = USB_MANUFACTURER;
+  _desc_str_arr[STRID_PRODUCT] = USB_PRODUCT;
+  // STRID_SERIAL is platform dependent
+
+  _desc_str_count = 4;
 }
 
 // Add interface descriptor
 // - Interface number will be updated to match current count
 // - Endpoint number is updated to be unique
-bool Adafruit_USBD_Device::addInterface(Adafruit_USBD_Interface& itf)
+bool Adafruit_USBD_Device::addInterface(Adafruit_USBD_Interface& itf, const char* desc_str)
 {
   uint8_t* desc = _desc_cfg+_desc_cfg_len;
   uint16_t const len = itf.getDescriptor(_itf_count, desc, _desc_cfg_maxlen-_desc_cfg_len);
@@ -109,12 +121,27 @@ bool Adafruit_USBD_Device::addInterface(Adafruit_USBD_Interface& itf)
 
   if ( !len ) return false;
 
+  // Parse interface descriptor to update
+  // - Interface Number & string descrioptor
+  // - Endpoint address
   while (desc < desc_end)
   {
     if (desc[1] == TUSB_DESC_INTERFACE)
     {
       tusb_desc_interface_t* desc_itf = (tusb_desc_interface_t*) desc;
-      if (desc_itf->bAlternateSetting == 0) _itf_count++;
+      if (desc_itf->bAlternateSetting == 0)
+      {
+        _itf_count++;
+        if (desc_str && (_desc_str_count < STRING_DESCRIPTOR_MAX) )
+        {
+          _desc_str_arr[_desc_str_count] = desc_str;
+          desc_itf->iInterface = _desc_str_count;
+          _desc_str_count++;
+
+          // only assign string index to first interface
+          desc_str = NULL;
+        }
+      }
     }else if (desc[1] == TUSB_DESC_ENDPOINT)
     {
       tusb_desc_endpoint_t* desc_ep = (tusb_desc_endpoint_t*) desc;
@@ -164,17 +191,17 @@ void Adafruit_USBD_Device::setDeviceVersion(uint16_t bcd)
 
 void Adafruit_USBD_Device::setLanguageDescriptor (uint16_t language_id)
 {
-  _language_id = language_id;
+  _desc_str_arr[STRID_LANGUAGE] = (const char*) ((uint32_t) language_id);
 }
 
 void Adafruit_USBD_Device::setManufacturerDescriptor(const char *s)
 {
-  _manufacturer = s;
+  _desc_str_arr[STRID_MANUFACTURER] = s;
 }
 
 void Adafruit_USBD_Device::setProductDescriptor(const char *s)
 {
-  _product = s;
+  _desc_str_arr[STRID_PRODUCT] = s;
 }
 
 bool Adafruit_USBD_Device::begin(void)
@@ -204,16 +231,8 @@ uint16_t const* Adafruit_USBD_Device::descriptor_string_cb(uint8_t index, uint16
   switch (index)
   {
     case 0:
-      _desc_str[1] = _language_id;
+      _desc_str[1] = ((uint16_t) ((uint32_t) _desc_str_arr[STRID_LANGUAGE]));
       chr_count = 1;
-    break;
-
-    case 1:
-      chr_count = strcpy_utf16(_manufacturer, _desc_str + 1, 32);
-    break;
-
-    case 2:
-      chr_count = strcpy_utf16(_product, _desc_str + 1, 32);
     break;
 
     case 3:
@@ -221,7 +240,12 @@ uint16_t const* Adafruit_USBD_Device::descriptor_string_cb(uint8_t index, uint16
       chr_count = this->getSerialDescriptor(_desc_str+1);
     break;
 
-    default: return NULL;
+    default:
+      // Invalid index
+      if (index >= _desc_str_count ) return NULL;
+
+      chr_count = strcpy_utf16(_desc_str_arr[index], _desc_str + 1, 32);
+    break;
   }
 
   // first byte is length (including header), second byte is string type

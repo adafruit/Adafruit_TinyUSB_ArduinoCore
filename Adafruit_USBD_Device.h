@@ -36,6 +36,8 @@ class Adafruit_USBD_Interface
 class Adafruit_USBD_Device
 {
   private:
+    enum { STRING_DESCRIPTOR_MAX = 8 };
+
     tusb_desc_device_t _desc_device;
 
     uint8_t  *_desc_cfg;
@@ -48,16 +50,13 @@ class Adafruit_USBD_Device
     uint8_t  _epin_count;
     uint8_t  _epout_count;
 
-    uint16_t _language_id;
-    const char *_manufacturer;
-    const char *_product;
-
-//    const char*
+    const char* _desc_str_arr[STRING_DESCRIPTOR_MAX];
+    uint8_t     _desc_str_count;
 
   public:
     Adafruit_USBD_Device(void);
 
-    bool addInterface(Adafruit_USBD_Interface& itf);
+    bool addInterface(Adafruit_USBD_Interface& itf, const char* desc_str = NULL);
     void setDescriptorBuffer(uint8_t* buf, uint32_t buflen);
 
     void setID(uint16_t vid, uint16_t pid);
