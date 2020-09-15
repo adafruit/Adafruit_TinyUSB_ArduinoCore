@@ -29,8 +29,15 @@
 
 class Adafruit_USBD_Interface
 {
+  protected:
+    const char* _desc_str;
+
   public:
+    Adafruit_USBD_Interface(void) { _desc_str = NULL; }
+
     virtual uint16_t getDescriptor(uint8_t itfnum, uint8_t* buf, uint16_t bufsize) = 0;
+    void setStringDescriptor(const char* str) { _desc_str = str; }
+    const char* getStringDescriptor(void) { return _desc_str; }
 };
 
 class Adafruit_USBD_Device
@@ -56,7 +63,7 @@ class Adafruit_USBD_Device
   public:
     Adafruit_USBD_Device(void);
 
-    bool addInterface(Adafruit_USBD_Interface& itf, const char* desc_str = NULL);
+    bool addInterface(Adafruit_USBD_Interface& itf);
     void setDescriptorBuffer(uint8_t* buf, uint32_t buflen);
 
     void setID(uint16_t vid, uint16_t pid);

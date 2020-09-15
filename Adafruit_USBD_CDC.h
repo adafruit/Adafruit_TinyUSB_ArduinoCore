@@ -28,7 +28,7 @@
 #include "Adafruit_USBD_Device.h"
 #include "Stream.h"
 
-class Adafruit_USBD_CDC : public Stream, Adafruit_USBD_Interface
+class Adafruit_USBD_CDC : public Stream, public Adafruit_USBD_Interface
 {
 public:
 	Adafruit_USBD_CDC(void);

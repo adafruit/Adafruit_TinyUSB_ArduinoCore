@@ -113,11 +113,13 @@ Adafruit_USBD_Device::Adafruit_USBD_Device(void)
 // Add interface descriptor
 // - Interface number will be updated to match current count
 // - Endpoint number is updated to be unique
-bool Adafruit_USBD_Device::addInterface(Adafruit_USBD_Interface& itf, const char* desc_str)
+bool Adafruit_USBD_Device::addInterface(Adafruit_USBD_Interface& itf)
 {
   uint8_t* desc = _desc_cfg+_desc_cfg_len;
   uint16_t const len = itf.getDescriptor(_itf_count, desc, _desc_cfg_maxlen-_desc_cfg_len);
   uint8_t* desc_end = desc+len;
+
+  const char* desc_str = itf.getStringDescriptor();
 
   if ( !len ) return false;
 
