@@ -41,6 +41,12 @@ public:
 	void begin(uint32_t baud, uint8_t config);
 	void end(void);
 
+	// return line coding set by host
+	uint32_t baud(void);
+	uint8_t  stopbits(void);
+	uint8_t  paritytype(void);
+	uint8_t  numbits(void);
+
 	virtual int    available(void);
 	virtual int    peek(void);
 	virtual int    read(void);
