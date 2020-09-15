@@ -39,9 +39,9 @@ class Adafruit_USBD_Device
     tusb_desc_device_t _desc_device;
 
     uint8_t  *_desc_cfg;
-    uint16_t _desc_cfg_maxlen;
-    uint16_t _desc_cfg_len;
     uint8_t  _desc_cfg_buffer[256];
+    uint16_t _desc_cfg_len;
+    uint16_t _desc_cfg_maxlen;
 
     uint8_t  _itf_count;
 
@@ -51,6 +51,8 @@ class Adafruit_USBD_Device
     uint16_t _language_id;
     const char *_manufacturer;
     const char *_product;
+
+//    const char*
 
   public:
     Adafruit_USBD_Device(void);
@@ -76,14 +78,18 @@ class Adafruit_USBD_Device
     bool suspended    (void) { return tud_suspended(); }
     bool ready        (void) { return tud_ready(); }
     bool remoteWakeup (void) { return tud_remote_wakeup(); }
-
-    friend uint8_t const * tud_descriptor_device_cb(void);
-    friend uint8_t const * tud_descriptor_configuration_cb(uint8_t index);
+    bool detach(void); // physical detach by disable pull-up
+    bool attach(void); // physical attach by enable pull-up
 
     //------------- Platform Dependent APIs -------------//
     uint8_t getSerialDescriptor(uint16_t* serial_str);
-    bool detach(void); // physical detach by disable pull-up
-    bool attach(void); // physical attach by enable pull-up
+
+  private:
+    uint16_t const* descriptor_string_cb(uint8_t index, uint16_t langid);
+
+    friend uint8_t const * tud_descriptor_device_cb(void);
+    friend uint8_t const * tud_descriptor_configuration_cb(uint8_t index);
+    friend uint16_t const* tud_descriptor_string_cb(uint8_t index, uint16_t langid);
 };
 
 extern Adafruit_USBD_Device USBDevice;
