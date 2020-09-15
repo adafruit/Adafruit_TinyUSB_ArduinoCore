@@ -67,6 +67,38 @@ void Adafruit_USBD_CDC::end(void)
   // nothing to do
 }
 
+uint32_t Adafruit_USBD_CDC::baud(void)
+{
+  cdc_line_coding_t coding;
+  tud_cdc_get_line_coding(&coding);
+
+  return coding.bit_rate;
+}
+
+uint8_t Adafruit_USBD_CDC::stopbits(void)
+{
+  cdc_line_coding_t coding;
+  tud_cdc_get_line_coding(&coding);
+
+  return coding.stop_bits;
+}
+
+uint8_t Adafruit_USBD_CDC::paritytype(void)
+{
+  cdc_line_coding_t coding;
+  tud_cdc_get_line_coding(&coding);
+
+  return coding.parity;
+}
+
+uint8_t Adafruit_USBD_CDC::numbits(void)
+{
+  cdc_line_coding_t coding;
+  tud_cdc_get_line_coding(&coding);
+
+  return coding.data_bits;
+}
+
 Adafruit_USBD_CDC::operator bool()
 {
   bool ret = tud_cdc_connected();
