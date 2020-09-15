@@ -68,10 +68,6 @@ class Adafruit_USBD_Device
     void setManufacturerDescriptor(const char *s);
     void setProductDescriptor(const char *s);
 
-    uint16_t    getLanguageDescriptor     (void) { return _language_id; }
-    const char *getManufacturerDescriptor (void) { return _manufacturer; }
-    const char *getProductDescriptor      (void) { return _product; }
-
     bool begin(void);
 
     bool mounted      (void) { return tud_mounted(); }
