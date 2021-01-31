@@ -144,6 +144,45 @@ typedef enum
 /** @} */
 
 //--------------------------------------------------------------------+
+// GAMEPAD
+//--------------------------------------------------------------------+
+/** \addtogroup ClassDriver_HID_Gamepad Gamepad
+ *  @{ */
+
+/// Standard HID Boot Protocol Gampad Report.
+typedef struct TU_ATTR_PACKED
+{
+  uint16_t buttons; /**< buttons mask for currently pressed buttons in the gamepad. */
+  int8_t  x;        /**< Current delta x   movement of the gamepad joystick 1. */
+  int8_t  y;        /**< Current delta y   movement of the gamepad joystick 1. */
+  int8_t  z;        /**< Current delta z   movement of the gamepad joystick 2. */
+  int8_t  r_z;      /**< Current delta r_z movement of the gamepad joystick 2. */
+}hid_gamepad_report_t;
+
+/// Standard Gamepad Buttons Bitmap (from Linux input event codes)
+typedef enum
+{
+  GAMEPAD_BUTTON_A      = TU_BIT(0),  ///< A/South button
+  GAMEPAD_BUTTON_B      = TU_BIT(1),  ///< B/East button
+  GAMEPAD_BUTTON_C      = TU_BIT(2),  ///< C button
+  GAMEPAD_BUTTON_X      = TU_BIT(3),  ///< X/North button
+  GAMEPAD_BUTTON_Y      = TU_BIT(4),  ///< Y/West button
+  GAMEPAD_BUTTON_Z      = TU_BIT(5),  ///< Z button
+  GAMEPAD_BUTTON_TL     = TU_BIT(6),  ///< L1 button
+  GAMEPAD_BUTTON_TR     = TU_BIT(7),  ///< R1 button
+  GAMEPAD_BUTTON_TL2    = TU_BIT(8),  ///< L2 button
+  GAMEPAD_BUTTON_TR2    = TU_BIT(9),  ///< R2 button
+  GAMEPAD_BUTTON_SELECT = TU_BIT(10), ///< Select button
+  GAMEPAD_BUTTON_START  = TU_BIT(11), ///< Start button
+  GAMEPAD_BUTTON_MODE   = TU_BIT(12), ///< Mode button
+  GAMEPAD_BUTTON_THUMBL = TU_BIT(13), ///< L3 button
+  GAMEPAD_BUTTON_THUMBR = TU_BIT(14), ///< R3 button
+  GAMEPAD_BUTTON_       = TU_BIT(15), ///< Undefined button
+}hid_gamepad_button_bm_t;
+
+/// @}
+
+//--------------------------------------------------------------------+
 // MOUSE
 //--------------------------------------------------------------------+
 /** \addtogroup ClassDriver_HID_Mouse Mouse
