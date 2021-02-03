@@ -149,14 +149,15 @@ typedef enum
 /** \addtogroup ClassDriver_HID_Gamepad Gamepad
  *  @{ */
 
-/// Standard HID Boot Protocol Gampad Report.
+/// Standard HID Boot Protocol Gamepad Report.
 typedef struct TU_ATTR_PACKED
 {
-  uint16_t buttons; /**< buttons mask for currently pressed buttons in the gamepad. */
-  int8_t  x;        /**< Current delta x   movement of the gamepad joystick 1. */
-  int8_t  y;        /**< Current delta y   movement of the gamepad joystick 1. */
-  int8_t  z;        /**< Current delta z   movement of the gamepad joystick 2. */
-  int8_t  r_z;      /**< Current delta r_z movement of the gamepad joystick 2. */
+  uint16_t buttons;  /**< buttons mask for currently pressed buttons in the gamepad. */
+  int8_t  x;         /**< Current delta x   movement of the gamepad joystick 1. */
+  int8_t  y;         /**< Current delta y   movement of the gamepad joystick 1. */
+  int8_t  z;         /**< Current delta z   movement of the gamepad joystick 2. */
+  int8_t  r_z;       /**< Current delta r_z movement of the gamepad joystick 2. */
+  uint8_t hat;       /**< buttons mask for currently pressed buttons in the gamepad hat */
 }hid_gamepad_report_t;
 
 /// Standard Gamepad Buttons Bitmap (from Linux input event codes)
@@ -180,6 +181,20 @@ typedef enum
   GAMEPAD_BUTTON_       = TU_BIT(15), ///< Undefined button
 }hid_gamepad_button_bm_t;
 
+/// Standard Gamepad HAT/DPAD Buttons Bitmap (from Linux input event codes)
+typedef enum
+{
+  GAMEPAD_HAT_CENTERED   = 0,  ///< DPAD_CENTERED
+  GAMEPAD_HAT_UP         = 1,  ///< DPAD_UP
+  GAMEPAD_HAT_UP_RIGHT   = 2,  ///< DPAD_UP_RIGHT
+  GAMEPAD_HAT_RIGHT      = 3,  ///< DPAD_RIGHT
+  GAMEPAD_HAT_DOWN_RIGHT = 4,  ///< DPAD_DOWN_RIGHT
+  GAMEPAD_HAT_DOWN       = 5,  ///< DPAD_DOWN
+  GAMEPAD_HAT_DOWN_LEFT  = 6,  ///< DPAD_DOWN_LEFT
+  GAMEPAD_HAT_LEFT       = 7,  ///< DPAD_LEFT
+  GAMEPAD_HAT_UP_LEFT    = 8,  ///< DPAD_UP_LEFT
+}hid_gamepad_hat_bm_t;
+
 /// @}
 
 //--------------------------------------------------------------------+
@@ -196,7 +211,7 @@ typedef struct TU_ATTR_PACKED
   int8_t  y;       /**< Current delta y movement on the mouse. */
   int8_t  wheel;   /**< Current delta wheel movement on the mouse. */
   int8_t  pan;     // using AC Pan
-} hid_mouse_report_t;
+}hid_mouse_report_t;
 
 /// Standard Mouse Buttons Bitmap
 typedef enum
