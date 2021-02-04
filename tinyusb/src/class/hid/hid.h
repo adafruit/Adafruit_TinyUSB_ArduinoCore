@@ -157,7 +157,7 @@ typedef struct TU_ATTR_PACKED
   int8_t  y;         /**< Current delta y   movement of the gamepad joystick 1. */
   int8_t  z;         /**< Current delta z   movement of the gamepad joystick 2. */
   int8_t  r_z;       /**< Current delta r_z movement of the gamepad joystick 2. */
-  uint8_t hat;       /**< buttons mask for currently pressed buttons in the gamepad hat */
+  uint16_t hat;       /**< buttons mask for currently pressed buttons in the gamepad hat */
 }hid_gamepad_report_t;
 
 /// Standard Gamepad Buttons Bitmap (from Linux input event codes)

@@ -276,7 +276,7 @@ TU_ATTR_WEAK bool tud_hid_set_idle_cb(uint8_t idle_rate);
     HID_REPORT_COUNT ( 4                                      ) ,\
     HID_REPORT_SIZE  ( 8                                      ) ,\
     HID_INPUT        ( HID_DATA | HID_VARIABLE | HID_ABSOLUTE ) ,\
-    /* 8 bit Hat Button Map  */ \
+    /* 16 bit Hat Button Map  */ \
     HID_USAGE_PAGE   ( HID_USAGE_PAGE_DESKTOP                 ) ,\
     HID_USAGE        ( HID_USAGE_DESKTOP_HAT_SWITCH           ) ,\
     HID_LOGICAL_MIN  ( 1                                      ) ,\
