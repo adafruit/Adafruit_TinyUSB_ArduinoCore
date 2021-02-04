@@ -249,7 +249,7 @@ TU_ATTR_WEAK bool tud_hid_set_idle_cb(uint8_t idle_rate);
 
 // Gamepad Report Descriptor Template
 // with 16 buttons, 2 joysticks and 1 hat/dpad with following layout
-// | Button Map (2 bytes) |  X | Y | Z | Rz (1 byte each) | hat/DPAD (1 byte)
+// | Button Map (2 bytes) |  X | Y | Z | Rx | Ry | Rz (1 byte each) | hat/DPAD (1 byte)
 #define TUD_HID_REPORT_DESC_GAMEPAD(...) \
   HID_USAGE_PAGE ( HID_USAGE_PAGE_DESKTOP     )                 ,\
   HID_USAGE      ( HID_USAGE_DESKTOP_GAMEPAD  )                 ,\
@@ -265,21 +265,23 @@ TU_ATTR_WEAK bool tud_hid_set_idle_cb(uint8_t idle_rate);
     HID_REPORT_COUNT ( 16                                     ) ,\
     HID_REPORT_SIZE  ( 1                                      ) ,\
     HID_INPUT        ( HID_DATA | HID_VARIABLE | HID_ABSOLUTE ) ,\
-    /* 8 bit X, Y, Z, Rz (min -127, max 127 ) */ \
+    /* 8 bit X, Y, Z, Rx, Ry, Rz (min -127, max 127 ) */ \
     HID_USAGE_PAGE   ( HID_USAGE_PAGE_DESKTOP                 ) ,\
     HID_USAGE        ( HID_USAGE_DESKTOP_X                    ) ,\
     HID_USAGE        ( HID_USAGE_DESKTOP_Y                    ) ,\
     HID_USAGE        ( HID_USAGE_DESKTOP_Z                    ) ,\
+    HID_USAGE        ( HID_USAGE_DESKTOP_RX                   ) ,\
+    HID_USAGE        ( HID_USAGE_DESKTOP_RY                   ) ,\
     HID_USAGE        ( HID_USAGE_DESKTOP_RZ                   ) ,\
     HID_LOGICAL_MIN  ( 0x81                                   ) ,\
     HID_LOGICAL_MAX  ( 0x7f                                   ) ,\
-    HID_REPORT_COUNT ( 4                                      ) ,\
+    HID_REPORT_COUNT ( 6                                      ) ,\
     HID_REPORT_SIZE  ( 8                                      ) ,\
     HID_INPUT        ( HID_DATA | HID_VARIABLE | HID_ABSOLUTE ) ,\
     /* 8 bit Hat Button Map  */ \
     HID_USAGE_PAGE   ( HID_USAGE_PAGE_DESKTOP                 ) ,\
     HID_USAGE        ( HID_USAGE_DESKTOP_HAT_SWITCH           ) ,\
-    HID_LOGICAL_MIN  ( 0                                      ) ,\
+    HID_LOGICAL_MIN  ( 1                                      ) ,\
     HID_LOGICAL_MAX  ( 8                                      ) ,\
     HID_PHYSICAL_MIN ( 0                                      ) ,\
     HID_PHYSICAL_MAX_N ( 315, 2                               ) ,\

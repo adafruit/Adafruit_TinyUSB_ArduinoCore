@@ -149,15 +149,17 @@ typedef enum
 /** \addtogroup ClassDriver_HID_Gamepad Gamepad
  *  @{ */
 
-/// Standard HID Boot Protocol Gamepad Report.
+/// HID Gamepad Protocol Report.
 typedef struct TU_ATTR_PACKED
 {
   uint16_t buttons;  /**< buttons mask for currently pressed buttons in the gamepad. */
-  int8_t  x;         /**< Current delta x   movement of the gamepad joystick 1. */
-  int8_t  y;         /**< Current delta y   movement of the gamepad joystick 1. */
-  int8_t  z;         /**< Current delta z   movement of the gamepad joystick 2. */
-  int8_t  r_z;       /**< Current delta r_z movement of the gamepad joystick 2. */
-  uint8_t hat;      /**< buttons mask for currently pressed buttons in the gamepad hat */
+  int8_t  x;         /**< Current delta x   movement of the gamepad left joystick. */
+  int8_t  y;         /**< Current delta y   movement of the gamepad left joystick. */
+  int8_t  z;         /**< Current delta z   movement of the gamepad right joystick. */
+  int8_t  rx;        /**< Current delta Rx  movement of the gamepad analog left trigger. */
+  int8_t  ry;        /**< Current delta Ry  movement of the gamepad analog right trigger. */
+  int8_t  rz;        /**< Current delta Rz  movement of the gamepad right joystick. */
+  uint8_t hat;       /**< buttons mask for currently pressed buttons in the gamepad hat */
 }hid_gamepad_report_t;
 
 /// Standard Gamepad Buttons Bitmap (from Linux input event codes)
