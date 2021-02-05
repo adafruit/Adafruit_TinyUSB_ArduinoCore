@@ -152,14 +152,14 @@ typedef enum
 /// HID Gamepad Protocol Report.
 typedef struct TU_ATTR_PACKED
 {
-  uint16_t buttons;  /**< buttons mask for currently pressed buttons in the gamepad. */
   int8_t  x;         /**< Current delta x   movement of the gamepad left joystick. */
   int8_t  y;         /**< Current delta y   movement of the gamepad left joystick. */
   int8_t  z;         /**< Current delta z   movement of the gamepad right joystick. */
+  int8_t  rz;        /**< Current delta Rz  movement of the gamepad right joystick. */
   int8_t  rx;        /**< Current delta Rx  movement of the gamepad analog left trigger. */
   int8_t  ry;        /**< Current delta Ry  movement of the gamepad analog right trigger. */
-  int8_t  rz;        /**< Current delta Rz  movement of the gamepad right joystick. */
   uint8_t hat;       /**< buttons mask for currently pressed buttons in the gamepad hat */
+  uint16_t buttons;  /**< buttons mask for currently pressed buttons in the gamepad. */
 }hid_gamepad_report_t;
 
 /// Standard Gamepad Buttons Bitmap (from Linux input event codes)
