@@ -149,17 +149,52 @@ typedef enum
 /** \addtogroup ClassDriver_HID_Gamepad Gamepad
  *  @{ */
 
+/* From https://www.kernel.org/doc/html/latest/input/gamepad.html
+          ____________________________              __
+         / [__ZL__]          [__ZR__] \               |
+        / [__ TL __]        [__ TR __] \              | Front Triggers
+     __/________________________________\__         __|
+    /                                  _   \          |
+   /      /\           __             (N)   \         |
+  /       ||      __  |MO|  __     _       _ \        | Main Pad
+ |    <===DP===> |SE|      |ST|   (W) -|- (E) |       |
+  \       ||    ___          ___       _     /        |
+  /\      \/   /   \        /   \     (S)   /\      __|
+ /  \________ | LS  | ____ |  RS | ________/  \       |
+|         /  \ \___/ /    \ \___/ /  \         |      | Control Sticks
+|        /    \_____/      \_____/    \        |    __|
+|       /                              \       |
+ \_____/                                \_____/
+
+     |________|______|    |______|___________|
+       D-Pad    Left       Right   Action Pad
+               Stick       Stick
+
+                 |_____________|
+                    Menu Pad
+
+  Most gamepads have the following features:
+  - Action-Pad 4 buttons in diamonds-shape (on the right side) NORTH, SOUTH, WEST and EAST.
+  - D-Pad (Direction-pad) 4 buttons (on the left side) that point up, down, left and right.
+  - Menu-Pad Different constellations, but most-times 2 buttons: SELECT - START.
+  - Analog-Sticks provide freely moveable sticks to control directions, Analog-sticks may also
+  provide a digital button if you press them.
+  - Triggers are located on the upper-side of the pad in vertical direction. The upper buttons
+  are normally named Left- and Right-Triggers, the lower buttons Z-Left and Z-Right.
+  - Rumble Many devices provide force-feedback features. But are mostly just simple rumble motors.
+ */
+
 /// HID Gamepad Protocol Report.
 typedef struct TU_ATTR_PACKED
 {
-  uint16_t buttons;  /**< buttons mask for currently pressed buttons in the gamepad. */
-  int8_t  x;         /**< Current delta x   movement of the gamepad left joystick. */
-  int8_t  y;         /**< Current delta y   movement of the gamepad left joystick. */
-  int8_t  z;         /**< Current delta z   movement of the gamepad right joystick. */
-  int8_t  rx;        /**< Current delta Rx  movement of the gamepad analog left trigger. */
-  int8_t  ry;        /**< Current delta Ry  movement of the gamepad analog right trigger. */
-  int8_t  rz;        /**< Current delta Rz  movement of the gamepad right joystick. */
-  uint8_t hat;       /**< buttons mask for currently pressed buttons in the gamepad hat */
+  int8_t  x;         ///< Delta x  movement of left analog-stick
+  int8_t  y;         ///< Delta y  movement of left analog-stick
+  int8_t  z;         ///< Delta z  movement of right analog-joystick
+  int8_t  rz;        ///< Delta Rz movement of right analog-joystick
+  int8_t  rx;        ///< Delta Rx movement of analog left trigger
+  int8_t  ry;        ///< Delta Ry movement of analog right trigger
+  uint8_t hat;       ///< Buttons mask for currently pressed buttons in the DPad/hat
+  uint16_t buttons;  ///< Buttons mask for currently pressed buttons
 }hid_gamepad_report_t;
 
 /// Standard Gamepad Buttons Bitmap (from Linux input event codes)
