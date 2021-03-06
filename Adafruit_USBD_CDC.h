@@ -46,6 +46,7 @@ public:
 	uint8_t  stopbits(void);
 	uint8_t  paritytype(void);
 	uint8_t  numbits(void);
+	int      dtr(void);
 
 	virtual int    available(void);
 	virtual int    peek(void);

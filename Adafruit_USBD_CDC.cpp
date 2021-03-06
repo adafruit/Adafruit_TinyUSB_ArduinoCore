@@ -99,6 +99,11 @@ uint8_t Adafruit_USBD_CDC::numbits(void)
   return coding.data_bits;
 }
 
+int Adafruit_USBD_CDC::dtr(void)
+{
+  return tud_cdc_connected();
+}
+
 Adafruit_USBD_CDC::operator bool()
 {
   bool ret = tud_cdc_connected();
