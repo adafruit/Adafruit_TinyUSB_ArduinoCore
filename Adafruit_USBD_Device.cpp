@@ -294,16 +294,57 @@ uint16_t const* tud_descriptor_string_cb(uint8_t index, uint16_t langid)
 
 // HID
 TU_ATTR_WEAK uint8_t const * tud_hid_descriptor_report_cb(void) { return NULL; }
-TU_ATTR_WEAK uint16_t tud_hid_get_report_cb(uint8_t report_id, hid_report_type_t report_type, uint8_t* buffer, uint16_t reqlen) { return 0; }
-TU_ATTR_WEAK void tud_hid_set_report_cb(uint8_t report_id, hid_report_type_t report_type, uint8_t const* buffer, uint16_t bufsize) { }
-
+TU_ATTR_WEAK uint16_t tud_hid_get_report_cb(uint8_t report_id, hid_report_type_t report_type, uint8_t* buffer, uint16_t reqlen) {
+  (void)report_id;
+  (void)report_type;
+  (void)buffer;
+  (void)reqlen;
+  return 0;
+}
+TU_ATTR_WEAK void tud_hid_set_report_cb(uint8_t report_id, hid_report_type_t report_type, uint8_t const* buffer, uint16_t bufsize) {
+  (void)report_id;
+  (void)report_type;
+  (void)buffer;
+  (void)bufsize;
+}
 // MSC
-TU_ATTR_WEAK int32_t tud_msc_read10_cb (uint8_t lun, uint32_t lba, uint32_t offset, void* buffer, uint32_t bufsize) { return -1; }
-TU_ATTR_WEAK int32_t tud_msc_write10_cb (uint8_t lun, uint32_t lba, uint32_t offset, uint8_t* buffer, uint32_t bufsize) { return -1; }
-TU_ATTR_WEAK void tud_msc_inquiry_cb(uint8_t lun, uint8_t vendor_id[8], uint8_t product_id[16], uint8_t product_rev[4]) {}
-TU_ATTR_WEAK bool tud_msc_test_unit_ready_cb(uint8_t lun) { return false; }
-TU_ATTR_WEAK void tud_msc_capacity_cb(uint8_t lun, uint32_t* block_count, uint16_t* block_size) { }
-TU_ATTR_WEAK int32_t tud_msc_scsi_cb (uint8_t lun, uint8_t const scsi_cmd[16], void* buffer, uint16_t bufsize) { return -1; }
+TU_ATTR_WEAK int32_t tud_msc_read10_cb (uint8_t lun, uint32_t lba, uint32_t offset, void* buffer, uint32_t bufsize) {
+  (void)lun;
+  (void)lba;
+  (void)offset;
+  (void)buffer;
+  (void)bufsize;
+  return -1;
+}
+TU_ATTR_WEAK int32_t tud_msc_write10_cb (uint8_t lun, uint32_t lba, uint32_t offset, uint8_t* buffer, uint32_t bufsize) {
+  (void)lun;
+  (void)lba;
+  (void)offset;
+  (void)buffer;
+  (void)bufsize;
+  return -1;
+}
+TU_ATTR_WEAK void tud_msc_inquiry_cb(uint8_t lun, uint8_t vendor_id[8], uint8_t product_id[16], uint8_t product_rev[4]) {
+  (void)lun;
+  (void)vendor_id;
+  (void)product_id;
+  (void)product_rev;
+}
+TU_ATTR_WEAK bool tud_msc_test_unit_ready_cb(uint8_t lun) {
+  return false;
+}
+TU_ATTR_WEAK void tud_msc_capacity_cb(uint8_t lun, uint32_t* block_count, uint16_t* block_size) {
+  (void)lun;
+  (void)block_count;
+  (void)block_size;
+}
+TU_ATTR_WEAK int32_t tud_msc_scsi_cb (uint8_t lun, uint8_t const scsi_cmd[16], void* buffer, uint16_t bufsize) {
+  (void)lun;
+  (void)scsi_cmd;
+  (void)buffer;
+  (void)bufsize;
+  return -1;
+}
 
 } // extern C
 
