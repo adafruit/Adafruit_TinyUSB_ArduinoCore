@@ -407,6 +407,15 @@ typedef enum
 #define HID_KEY_F13                0x68
 #define HID_KEY_F14                0x69
 #define HID_KEY_F15                0x6A
+#define HID_KEY_F16                0x6B
+#define HID_KEY_F17                0x6C
+#define HID_KEY_F18                0x6D
+#define HID_KEY_F19                0x6E
+#define HID_KEY_F20                0x6F
+#define HID_KEY_F21                0x70
+#define HID_KEY_F22                0x71
+#define HID_KEY_F23                0x72
+#define HID_KEY_F24                0x73
 #define HID_KEY_CONTROL_LEFT       0xE0
 #define HID_KEY_SHIFT_LEFT         0xE1
 #define HID_KEY_ALT_LEFT           0xE2
