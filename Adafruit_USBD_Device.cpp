@@ -331,6 +331,7 @@ TU_ATTR_WEAK void tud_msc_inquiry_cb(uint8_t lun, uint8_t vendor_id[8], uint8_t 
   (void)product_rev;
 }
 TU_ATTR_WEAK bool tud_msc_test_unit_ready_cb(uint8_t lun) {
+  (void)lun;
   return false;
 }
 TU_ATTR_WEAK void tud_msc_capacity_cb(uint8_t lun, uint32_t* block_count, uint16_t* block_size) {
