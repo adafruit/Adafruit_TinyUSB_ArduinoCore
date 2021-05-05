@@ -129,7 +129,7 @@ int Adafruit_USBD_CDC::available(void)
 int Adafruit_USBD_CDC::peek(void)
 {
   uint8_t ch;
-  return tud_cdc_peek(0, &ch) ? (int) ch : -1;
+  return tud_cdc_peek(&ch) ? (int) ch : -1;
 }
 
 int Adafruit_USBD_CDC::read(void)

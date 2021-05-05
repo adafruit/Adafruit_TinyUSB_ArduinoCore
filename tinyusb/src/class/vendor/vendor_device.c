@@ -72,9 +72,9 @@ uint32_t tud_vendor_n_available (uint8_t itf)
   return tu_fifo_count(&_vendord_itf[itf].rx_ff);
 }
 
-bool tud_vendor_n_peek(uint8_t itf, int pos, uint8_t* u8)
+bool tud_vendor_n_peek(uint8_t itf, uint8_t* u8)
 {
-  return tu_fifo_peek_at(&_vendord_itf[itf].rx_ff, pos, u8);
+  return tu_fifo_peek(&_vendord_itf[itf].rx_ff, u8);
 }
 
 //--------------------------------------------------------------------+
@@ -146,8 +146,8 @@ void vendord_init(void)
     tu_fifo_config(&p_itf->tx_ff, p_itf->tx_ff_buf, CFG_TUD_VENDOR_TX_BUFSIZE, 1, false);
 
 #if CFG_FIFO_MUTEX
-    tu_fifo_config_mutex(&p_itf->rx_ff, osal_mutex_create(&p_itf->rx_ff_mutex));
-    tu_fifo_config_mutex(&p_itf->tx_ff, osal_mutex_create(&p_itf->tx_ff_mutex));
+    tu_fifo_config_mutex(&p_itf->rx_ff, NULL, osal_mutex_create(&p_itf->rx_ff_mutex));
+    tu_fifo_config_mutex(&p_itf->tx_ff, osal_mutex_create(&p_itf->tx_ff_mutex), NULL);
 #endif
   }
 }

@@ -76,6 +76,10 @@
     #include "class/msc/msc_device.h"
   #endif
 
+#if CFG_TUD_AUDIO
+  #include "class/audio/audio_device.h"
+#endif
+
   #if CFG_TUD_MIDI
     #include "class/midi/midi_device.h"
   #endif
@@ -88,7 +92,7 @@
     #include "class/usbtmc/usbtmc_device.h"
   #endif
 
-  #if CFG_TUD_DFU_RT
+  #if CFG_TUD_DFU_RUNTIME
     #include "class/dfu/dfu_rt_device.h"
   #endif
 

@@ -131,9 +131,9 @@ typedef struct
   uint8_t ep_int_in;
   // IN buffer is only used for first packet, not the remainder
   // in order to deal with prepending header
-  uint8_t ep_bulk_in_buf[USBTMCD_MAX_PACKET_SIZE];
+  CFG_TUSB_MEM_ALIGN uint8_t ep_bulk_in_buf[USBTMCD_MAX_PACKET_SIZE];
   // OUT buffer receives one packet at a time
-  uint8_t ep_bulk_out_buf[USBTMCD_MAX_PACKET_SIZE];
+  CFG_TUSB_MEM_ALIGN uint8_t ep_bulk_out_buf[USBTMCD_MAX_PACKET_SIZE];
   uint32_t transfer_size_remaining; // also used for requested length for bulk IN.
   uint32_t transfer_size_sent;      // To keep track of data bytes that have been queued in FIFO (not header bytes)
 
@@ -145,7 +145,7 @@ typedef struct
   usbtmc_capabilities_specific_t const * capabilities;
 } usbtmc_interface_state_t;
 
-static usbtmc_interface_state_t usbtmc_state =
+CFG_TUSB_MEM_SECTION static usbtmc_interface_state_t usbtmc_state =
 {
     .itf_id = 0xFF,
 };
@@ -575,7 +575,13 @@ bool usbtmcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint
   return false;
 }
 
-bool usbtmcd_control_request_cb(uint8_t rhport, tusb_control_request_t const * request) {
+// Invoked when a control transfer occurred on an interface of this class
+// Driver response accordingly to the request and the transfer stage (setup/data/ack)
+// return false to stall control endpoint (e.g unsupported request)
+bool usbtmcd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const * request)
+{
+  // nothing to do with DATA and ACK stage
+  if ( stage != CONTROL_STAGE_SETUP ) return true;
 
   uint8_t tmcStatusCode = USBTMC_STATUS_FAILED;
 #if (CFG_TUD_USBTMC_ENABLE_488)
@@ -853,15 +859,6 @@ bool usbtmcd_control_request_cb(uint8_t rhport, tusb_control_request_t const * r
     return false;
   }
   TU_VERIFY(false);
-}
-
-bool usbtmcd_control_complete_cb(uint8_t rhport, tusb_control_request_t const * request)
-{
-  (void)rhport;
-  //------------- Class Specific Request -------------//
-  TU_ASSERT (request->bmRequestType_bit.type == TUSB_REQ_TYPE_CLASS);
-
-  return true;
 }
 
 #endif /* CFG_TUD_TSMC */

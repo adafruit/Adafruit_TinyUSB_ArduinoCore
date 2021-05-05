@@ -27,15 +27,16 @@
  */
 
 #include "tusb_option.h"
+#include "common/tusb_fifo.h"
 
-#if CFG_TUSB_MCU == OPT_MCU_ESP32S2 && TUSB_OPT_DEVICE_ENABLED
+#if (((CFG_TUSB_MCU == OPT_MCU_ESP32S2) ||  (CFG_TUSB_MCU == OPT_MCU_ESP32S3)) && TUSB_OPT_DEVICE_ENABLED)
 
 // Espressif
 #include "driver/periph_ctrl.h"
 #include "freertos/xtensa_api.h"
 #include "esp_intr_alloc.h"
 #include "esp_log.h"
-#include "esp32s2/rom/gpio.h"
+#include "driver/gpio.h"
 #include "soc/dport_reg.h"
 #include "soc/gpio_sig_map.h"
 #include "soc/usb_periph.h"
@@ -59,6 +60,7 @@
 
 typedef struct {
     uint8_t *buffer;
+    // tu_fifo_t * ff; // TODO support dcd_edpt_xfer_fifo API
     uint16_t total_len;
     uint16_t queued_len;
     uint16_t max_size;
@@ -218,6 +220,9 @@ void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
 void dcd_remote_wakeup(uint8_t rhport)
 {
   (void)rhport;
+
+  // TODO must manually clear this bit after 1-15 ms
+  // USB0.DCTL |= USB_RMTWKUPSIG_M;
 }
 
 // connect by enabling internal pull-up resistor on D+/D-
@@ -317,6 +322,7 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t to
 
   xfer_ctl_t * xfer = XFER_CTL_BASE(epnum, dir);
   xfer->buffer       = buffer;
+  // xfer->ff           = NULL; // TODO support dcd_edpt_xfer_fifo API
   xfer->total_len    = total_bytes;
   xfer->queued_len   = 0;
   xfer->short_packet = false;
@@ -351,6 +357,56 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t to
   }
   return true;
 }
+
+#if 0 // TODO support dcd_edpt_xfer_fifo API
+bool dcd_edpt_xfer_fifo (uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16_t total_bytes)
+{
+  (void)rhport;
+
+  // USB buffers always work in bytes so to avoid unnecessary divisions we demand item_size = 1
+  TU_ASSERT(ff->item_size == 1);
+
+  uint8_t const epnum = tu_edpt_number(ep_addr);
+  uint8_t const dir   = tu_edpt_dir(ep_addr);
+
+  xfer_ctl_t * xfer = XFER_CTL_BASE(epnum, dir);
+  xfer->buffer       = NULL;
+  xfer->ff           = ff;
+  xfer->total_len    = total_bytes;
+  xfer->queued_len   = 0;
+  xfer->short_packet = false;
+
+  uint16_t num_packets = (total_bytes / xfer->max_size);
+  uint8_t short_packet_size = total_bytes % xfer->max_size;
+
+  // Zero-size packet is special case.
+  if (short_packet_size > 0 || (total_bytes == 0)) {
+    num_packets++;
+  }
+
+  ESP_LOGV(TAG, "Transfer <-> EP%i, %s, pkgs: %i, bytes: %i",
+           epnum, ((dir == TUSB_DIR_IN) ? "USB0.HOST (in)" : "HOST->DEV (out)"),
+           num_packets, total_bytes);
+
+  // IN and OUT endpoint xfers are interrupt-driven, we just schedule them
+  // here.
+  if (dir == TUSB_DIR_IN) {
+    // A full IN transfer (multiple packets, possibly) triggers XFRC.
+    USB0.in_ep_reg[epnum].dieptsiz = (num_packets << USB_D_PKTCNT0_S) | total_bytes;
+    USB0.in_ep_reg[epnum].diepctl |= USB_D_EPENA1_M | USB_D_CNAK1_M; // Enable | CNAK
+
+    // Enable fifo empty interrupt only if there are something to put in the fifo.
+    if(total_bytes != 0) {
+      USB0.dtknqr4_fifoemptymsk |= (1 << epnum);
+    }
+  } else {
+    // Each complete packet for OUT xfers triggers XFRC.
+    USB0.out_ep_reg[epnum].doeptsiz |= USB_PKTCNT0_M | ((xfer->max_size & USB_XFERSIZE0_V) << USB_XFERSIZE0_S);
+    USB0.out_ep_reg[epnum].doepctl  |= USB_EPENA0_M | USB_CNAK0_M;
+  }
+  return true;
+}
+#endif
 
 void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
 {
@@ -460,35 +516,46 @@ static void receive_packet(xfer_ctl_t *xfer, /* usb_out_endpoint_t * out_ep, */ 
     to_recv_size = (xfer_size > xfer->max_size) ? xfer->max_size : xfer_size;
   }
 
-  uint8_t to_recv_rem = to_recv_size % 4;
-  uint16_t to_recv_size_aligned = to_recv_size - to_recv_rem;
-
-  // Do not assume xfer buffer is aligned.
-  uint8_t *base = (xfer->buffer + xfer->queued_len);
-
-  // This for loop always runs at least once- skip if less than 4 bytes
-  // to collect.
-  if (to_recv_size >= 4) {
-    for (uint16_t i = 0; i < to_recv_size_aligned; i += 4) {
-      uint32_t tmp = (*rx_fifo);
-      base[i] = tmp & 0x000000FF;
-      base[i + 1] = (tmp & 0x0000FF00) >> 8;
-      base[i + 2] = (tmp & 0x00FF0000) >> 16;
-      base[i + 3] = (tmp & 0xFF000000) >> 24;
-    }
+  // Common buffer read
+#if 0 // TODO support dcd_edpt_xfer_fifo API
+  if (xfer->ff)
+  {
+    // Ring buffer
+    tu_fifo_write_n_const_addr_full_words(xfer->ff, (const void *) rx_fifo, to_recv_size);
   }
+  else
+#endif
+  {
+    uint8_t to_recv_rem = to_recv_size % 4;
+    uint16_t to_recv_size_aligned = to_recv_size - to_recv_rem;
 
-  // Do not read invalid bytes from RX FIFO.
-  if (to_recv_rem != 0) {
-    uint32_t tmp = (*rx_fifo);
-    uint8_t *last_32b_bound = base + to_recv_size_aligned;
+    // Do not assume xfer buffer is aligned.
+    uint8_t *base = (xfer->buffer + xfer->queued_len);
 
-    last_32b_bound[0] = tmp & 0x000000FF;
-    if (to_recv_rem > 1) {
-      last_32b_bound[1] = (tmp & 0x0000FF00) >> 8;
+    // This for loop always runs at least once- skip if less than 4 bytes
+    // to collect.
+    if (to_recv_size >= 4) {
+      for (uint16_t i = 0; i < to_recv_size_aligned; i += 4) {
+        uint32_t tmp = (*rx_fifo);
+        base[i] = tmp & 0x000000FF;
+        base[i + 1] = (tmp & 0x0000FF00) >> 8;
+        base[i + 2] = (tmp & 0x00FF0000) >> 16;
+        base[i + 3] = (tmp & 0xFF000000) >> 24;
+      }
     }
-    if (to_recv_rem > 2) {
-      last_32b_bound[2] = (tmp & 0x00FF0000) >> 16;
+
+    // Do not read invalid bytes from RX FIFO.
+    if (to_recv_rem != 0) {
+      uint32_t tmp = (*rx_fifo);
+      uint8_t *last_32b_bound = base + to_recv_size_aligned;
+
+      last_32b_bound[0] = tmp & 0x000000FF;
+      if (to_recv_rem > 1) {
+        last_32b_bound[1] = (tmp & 0x0000FF00) >> 8;
+      }
+      if (to_recv_rem > 2) {
+        last_32b_bound[2] = (tmp & 0x00FF0000) >> 16;
+      }
     }
   }
 
@@ -508,37 +575,47 @@ static void transmit_packet(xfer_ctl_t *xfer, volatile usb_in_endpoint_t *in_ep,
   xfer->queued_len = xfer->total_len - remaining;
 
   uint16_t to_xfer_size = (remaining > xfer->max_size) ? xfer->max_size : remaining;
-  uint8_t to_xfer_rem = to_xfer_size % 4;
-  uint16_t to_xfer_size_aligned = to_xfer_size - to_xfer_rem;
 
-  // Buffer might not be aligned to 32b, so we need to force alignment
-  // by copying to a temp var.
-  uint8_t *base = (xfer->buffer + xfer->queued_len);
+#if 0 // TODO support dcd_edpt_xfer_fifo API
+  if (xfer->ff)
+  {
+    tu_fifo_read_n_const_addr_full_words(xfer->ff, (void *) tx_fifo, to_xfer_size);
+  }
+  else
+#endif
+  {
+    uint8_t to_xfer_rem = to_xfer_size % 4;
+    uint16_t to_xfer_size_aligned = to_xfer_size - to_xfer_rem;
 
-  // This for loop always runs at least once- skip if less than 4 bytes
-  // to send off.
-  if (to_xfer_size >= 4) {
-    for (uint16_t i = 0; i < to_xfer_size_aligned; i += 4) {
-      uint32_t tmp = base[i] | (base[i + 1] << 8) |
-          (base[i + 2] << 16) | (base[i + 3] << 24);
+    // Buffer might not be aligned to 32b, so we need to force alignment
+    // by copying to a temp var.
+    uint8_t *base = (xfer->buffer + xfer->queued_len);
+
+    // This for loop always runs at least once- skip if less than 4 bytes
+    // to send off.
+    if (to_xfer_size >= 4) {
+      for (uint16_t i = 0; i < to_xfer_size_aligned; i += 4) {
+        uint32_t tmp = base[i] | (base[i + 1] << 8) |
+            (base[i + 2] << 16) | (base[i + 3] << 24);
+        (*tx_fifo) = tmp;
+      }
+    }
+
+    // Do not read beyond end of buffer if not divisible by 4.
+    if (to_xfer_rem != 0) {
+      uint32_t tmp = 0;
+      uint8_t *last_32b_bound = base + to_xfer_size_aligned;
+
+      tmp |= last_32b_bound[0];
+      if (to_xfer_rem > 1) {
+        tmp |= (last_32b_bound[1] << 8);
+      }
+      if (to_xfer_rem > 2) {
+        tmp |= (last_32b_bound[2] << 16);
+      }
+
       (*tx_fifo) = tmp;
     }
-  }
-
-  // Do not read beyond end of buffer if not divisible by 4.
-  if (to_xfer_rem != 0) {
-    uint32_t tmp = 0;
-    uint8_t *last_32b_bound = base + to_xfer_size_aligned;
-
-    tmp |= last_32b_bound[0];
-    if (to_xfer_rem > 1) {
-      tmp |= (last_32b_bound[1] << 8);
-    }
-    if (to_xfer_rem > 2) {
-      tmp |= (last_32b_bound[2] << 16);
-    }
-
-    (*tx_fifo) = tmp;
   }
 }
 
@@ -670,6 +747,7 @@ static void handle_epin_ints(void)
 static void _dcd_int_handler(void* arg)
 {
   (void) arg;
+  uint8_t const rhport = 0;
 
   const uint32_t int_status = USB0.gintsts;
   //const uint32_t int_msk = USB0.gintmsk;
@@ -695,7 +773,19 @@ static void _dcd_int_handler(void* arg)
     // the end of reset.
     USB0.gintsts = USB_ENUMDONE_M;
     enum_done_processing();
-    dcd_event_bus_signal(0, DCD_EVENT_BUS_RESET, true);
+    dcd_event_bus_reset(rhport, TUSB_SPEED_FULL, true);
+  }
+
+  if(int_status & USB_USBSUSP_M)
+  {
+    USB0.gintsts = USB_USBSUSP_M;
+    dcd_event_bus_signal(rhport, DCD_EVENT_SUSPEND, true);
+  }
+
+  if(int_status & USB_WKUPINT_M)
+  {
+    USB0.gintsts = USB_WKUPINT_M;
+    dcd_event_bus_signal(rhport, DCD_EVENT_RESUME, true);
   }
 
   if (int_status & USB_OTGINT_M)
@@ -707,7 +797,7 @@ static void _dcd_int_handler(void* arg)
 
     if (otg_int & USB_SESENDDET_M)
     {
-      dcd_event_bus_signal(0, DCD_EVENT_UNPLUGGED, true);
+      dcd_event_bus_signal(rhport, DCD_EVENT_UNPLUGGED, true);
     }
 
     USB0.gotgint = otg_int;
@@ -716,7 +806,7 @@ static void _dcd_int_handler(void* arg)
 #if USE_SOF
   if (int_status & USB_SOF_M) {
     USB0.gintsts = USB_SOF_M;
-    dcd_event_bus_signal(0, DCD_EVENT_SOF, true); // do nothing actually
+    dcd_event_bus_signal(rhport, DCD_EVENT_SOF, true); // do nothing actually
   }
 #endif
 
@@ -774,5 +864,5 @@ void dcd_int_disable (uint8_t rhport)
   esp_intr_free(usb_ih);
 }
 
-#endif // OPT_MCU_ESP32S2
+#endif // #if OPT_MCU_ESP32S2 || OPT_MCU_ESP32S3
 

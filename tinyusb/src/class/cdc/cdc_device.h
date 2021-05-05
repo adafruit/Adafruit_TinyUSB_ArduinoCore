@@ -83,7 +83,7 @@ int32_t  tud_cdc_n_read_char       (uint8_t itf);
 void     tud_cdc_n_read_flush      (uint8_t itf);
 
 // Get a byte from FIFO at the specified position without removing it
-bool     tud_cdc_n_peek            (uint8_t itf, int pos, uint8_t* u8);
+bool     tud_cdc_n_peek            (uint8_t itf, uint8_t* u8);
 
 // Write bytes to TX FIFO, data may remain in the FIFO for a while
 uint32_t tud_cdc_n_write           (uint8_t itf, void const* buffer, uint32_t bufsize);
@@ -102,6 +102,9 @@ uint32_t tud_cdc_n_write_flush     (uint8_t itf);
 // Return the number of bytes (characters) available for writing to TX FIFO buffer in a single n_write operation.
 uint32_t tud_cdc_n_write_available (uint8_t itf);
 
+// Clear the transmit FIFO
+bool tud_cdc_n_write_clear (uint8_t itf);
+
 //--------------------------------------------------------------------+
 // Application API (Single Port)
 //--------------------------------------------------------------------+
@@ -114,13 +117,14 @@ static inline uint32_t tud_cdc_available       (void);
 static inline int32_t  tud_cdc_read_char       (void);
 static inline uint32_t tud_cdc_read            (void* buffer, uint32_t bufsize);
 static inline void     tud_cdc_read_flush      (void);
-static inline bool     tud_cdc_peek            (int pos, uint8_t* u8);
+static inline bool     tud_cdc_peek            (uint8_t* u8);
 
 static inline uint32_t tud_cdc_write_char      (char ch);
 static inline uint32_t tud_cdc_write           (void const* buffer, uint32_t bufsize);
 static inline uint32_t tud_cdc_write_str       (char const* str);
 static inline uint32_t tud_cdc_write_flush     (void);
 static inline uint32_t tud_cdc_write_available (void);
+static inline bool     tud_cdc_write_clear     (void);
 
 //--------------------------------------------------------------------+
 // Application Callback API (weak is optional)
@@ -140,6 +144,9 @@ TU_ATTR_WEAK void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts);
 
 // Invoked when line coding is change via SET_LINE_CODING
 TU_ATTR_WEAK void tud_cdc_line_coding_cb(uint8_t itf, cdc_line_coding_t const* p_line_coding);
+
+// Invoked when received send break
+TU_ATTR_WEAK void tud_cdc_send_break_cb(uint8_t itf, uint16_t duration_ms);
 
 //--------------------------------------------------------------------+
 // Inline Functions
@@ -200,9 +207,9 @@ static inline void tud_cdc_read_flush (void)
   tud_cdc_n_read_flush(0);
 }
 
-static inline bool tud_cdc_peek (int pos, uint8_t* u8)
+static inline bool tud_cdc_peek (uint8_t* u8)
 {
-  return tud_cdc_n_peek(0, pos, u8);
+  return tud_cdc_n_peek(0, u8);
 }
 
 static inline uint32_t tud_cdc_write_char (char ch)
@@ -230,18 +237,22 @@ static inline uint32_t tud_cdc_write_available(void)
   return tud_cdc_n_write_available(0);
 }
 
+static inline bool tud_cdc_write_clear(void)
+{
+  return tud_cdc_n_write_clear(0);
+}
+
 /** @} */
 /** @} */
 
 //--------------------------------------------------------------------+
 // INTERNAL USBD-CLASS DRIVER API
 //--------------------------------------------------------------------+
-void     cdcd_init             (void);
-void     cdcd_reset            (uint8_t rhport);
-uint16_t cdcd_open             (uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t max_len);
-bool     cdcd_control_request  (uint8_t rhport, tusb_control_request_t const * request);
-bool     cdcd_control_complete (uint8_t rhport, tusb_control_request_t const * request);
-bool     cdcd_xfer_cb          (uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes);
+void     cdcd_init            (void);
+void     cdcd_reset           (uint8_t rhport);
+uint16_t cdcd_open            (uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t max_len);
+bool     cdcd_control_xfer_cb (uint8_t rhport, uint8_t stage, tusb_control_request_t const * request);
+bool     cdcd_xfer_cb         (uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes);
 
 #ifdef __cplusplus
  }
